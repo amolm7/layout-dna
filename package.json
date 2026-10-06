@@ -1,0 +1,20 @@
+{
+  "name": "layout-dna",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "add-on"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace add-on",
+    "dev:add-on": "npm run start --workspace add-on",
+    "typecheck": "npm run typecheck --workspace add-on",
+    "lint": "npm run lint --workspace add-on",
+    "test": "npm run test --workspace add-on",
+    "check": "./scripts/check.sh"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
+

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "1.0.0",
+  "canvas": { "width": 1080, "height": 1080, "backgroundColor": { "r": 0.08, "g": 0.12, "b": 0.18, "a": 1 } },
+  "elements": [
+    { "id": "product", "type": "image", "semanticRole": "hero", "parentId": null, "x": 0.42, "y": 0.12, "width": 0.5, "height": 0.62, "rotation": -4, "zIndex": 0, "visible": true, "optional": false, "visual": { "opacity": 1, "luminance": 0.7, "colorCoverage": 0.85 }, "constraints": { "fixedAspectRatio": true, "mandatoryOnCanvas": true }, "readingOrder": 1, "groupAffinities": ["offer"] },
+    { "id": "sale", "type": "text", "semanticRole": "headline", "parentId": null, "x": 0.07, "y": 0.16, "width": 0.42, "height": 0.22, "rotation": 0, "zIndex": 1, "visible": true, "optional": false, "text": { "content": "30% OFF", "fontSize": 112, "fontWeight": 800, "align": "left" }, "visual": { "opacity": 1, "luminance": 0.92, "colorCoverage": 0.8 }, "constraints": { "mandatoryOnCanvas": true }, "readingOrder": 0, "groupAffinities": ["offer"] },
+    { "id": "cta", "type": "shape", "semanticRole": "cta", "parentId": null, "x": 0.08, "y": 0.78, "width": 0.28, "height": 0.09, "rotation": 0, "zIndex": 2, "visible": true, "optional": false, "visual": { "opacity": 1, "luminance": 0.55, "colorCoverage": 1 }, "constraints": { "minWidth": 0.18, "mandatoryOnCanvas": true }, "readingOrder": 2, "groupAffinities": ["offer"] }
+  ]
+}
+
