@@ -11,3 +11,10 @@
 - Keep the placeholder solver deterministic; seed any future stochastic behavior and expose the seed.
 - Do not add heavyweight optimizer dependencies to the default install until they power an implemented path.
 
+## Commit conventions
+
+- Make small, focused commits — one logical change each, not large batches.
+- Write a clear commit message summarizing what changed and why.
+- Before pushing, run `git log origin/main..HEAD --oneline --stat` and review the commits going out; confirm before pushing.
+- After pushing, confirm what landed.
+
