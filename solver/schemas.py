@@ -138,7 +138,9 @@ class ExplanationStep(StrictModel):
 
 class OptimizeResponse(StrictModel):
     schemaVersion: Literal["1.0.0"] = SCHEMA_VERSION
-    solverKind: Literal["deterministic-placeholder"] = "deterministic-placeholder"
+    solverKind: Literal["deterministic-reflow", "deterministic-placeholder"] = (
+        "deterministic-reflow"
+    )
     target: Canvas
     boxes: list[ElementBox]
     geneDrift: dict[GeneName, float]

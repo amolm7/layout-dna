@@ -75,6 +75,6 @@ def test_optimize_endpoint_matches_response_contract(scene: Scene) -> None:
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["solverKind"] == "deterministic-placeholder"
+    assert body["solverKind"] == "deterministic-reflow"
     assert len(body["boxes"]) == len(scene.elements)
     assert body["explanation"][-1]["metrics"]["finalSolver"] is False

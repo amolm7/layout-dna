@@ -77,7 +77,7 @@ export interface ElementBox {
 
 export interface OptimizeResponse {
   schemaVersion: typeof SCHEMA_VERSION;
-  solverKind: "deterministic-placeholder";
+  solverKind: "deterministic-reflow" | "deterministic-placeholder";
   target: { width: number; height: number; backgroundColor?: Color };
   boxes: ElementBox[];
   geneDrift: Record<GeneName, number>;
