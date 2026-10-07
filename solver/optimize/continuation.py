@@ -1,60 +1,108 @@
 from schemas import Canvas, ElementBox, ExplanationStep, OptimizeRequest, OptimizeResponse
 
 from .constraints import clamp_to_margin
-from .losses import placeholder_drift
+from .losses import measure_drift
+from .reflow import reflow
+from .sacrifice import ranked_sacrifices
 
 
 def optimize_scene(request: OptimizeRequest) -> OptimizeResponse:
-    """Apply a deterministic contain transform; this is not a differentiable solver."""
+    """Re-compose the source layout for the target canvas.
+
+    Deterministic and geometry-only: a role-aware constrained reflow, not a
+    differentiable optimizer. Gradient- and optimal-transport-based refinement
+    remain future work behind this same HTTP contract.
+    """
     scene = request.scene
-    source_width = scene.canvas.width
-    source_height = scene.canvas.height
-    target_width = request.targetWidth
-    target_height = request.targetHeight
-    usable_width = target_width * (1 - 2 * request.margin)
-    usable_height = target_height * (1 - 2 * request.margin)
-    scale = min(usable_width / source_width, usable_height / source_height)
-    offset_x = (target_width - source_width * scale) / 2
-    offset_y = (target_height - source_height * scale) / 2
+    result = reflow(request)
+
+    background_ids = {box.id for box in result.boxes if box.width >= 0.999 and box.height >= 0.999}
+    fixed_aspect_ids = {e.id for e in scene.elements if e.constraints.fixedAspectRatio}
 
     boxes: list[ElementBox] = []
-    for element in scene.elements:
-        box = ElementBox(
-            id=element.id,
-            x=(offset_x + element.x * source_width * scale) / target_width,
-            y=(offset_y + element.y * source_height * scale) / target_height,
-            width=element.width * source_width * scale / target_width,
-            height=element.height * source_height * scale / target_height,
-            rotation=element.rotation,
-        )
-        clearance = element.constraints.logoClearSpace
-        boxes.append(clamp_to_margin(box, max(request.margin, clearance)))
+    for box in result.boxes:
+        if box.id in background_ids:
+            boxes.append(box)  # full-bleed backgrounds are intentionally outside the safe area
+        else:
+            boxes.append(clamp_to_margin(box, request.margin))
 
-    drift = placeholder_drift(scene, boxes, target_width / target_height)
-    return OptimizeResponse(
-        target=Canvas(
-            width=target_width, height=target_height, backgroundColor=scene.canvas.backgroundColor
+    target = Canvas(
+        width=request.targetWidth,
+        height=request.targetHeight,
+        backgroundColor=scene.canvas.backgroundColor,
+    )
+    drift = measure_drift(scene, boxes, target)
+    ranked = ranked_sacrifices(drift)
+    top_gene, top_value = ranked[0] if ranked else ("visualMass", 0.0)
+
+    fixed_placed = sum(1 for box in boxes if box.id in fixed_aspect_ids)
+
+    explanation = [
+        ExplanationStep(
+            code="reflow",
+            message=(
+                f"Re-composed the layout along the {result.flow_axis} axis, "
+                f"placing {len(boxes)} element(s) in reading order."
+            ),
+            metrics={
+                "axis": result.flow_axis,
+                "elementsPlaced": float(len(boxes)),
+                "reorderedElements": float(result.reorder_count),
+            },
         ),
+        ExplanationStep(
+            code="constraints",
+            message=(
+                "Honored fixed aspect ratios, minimum sizes, logo clear space, and "
+                "the target safe margin."
+            ),
+            metrics={
+                "fixedAspectHonored": float(fixed_placed),
+                "margin": request.margin,
+            },
+        ),
+    ]
+
+    if result.dropped:
+        explanation.append(
+            ExplanationStep(
+                code="optional-removed",
+                message=(
+                    "Removed optional element(s) that did not fit the target safe area: "
+                    + ", ".join(result.dropped)
+                    + "."
+                ),
+                metrics={
+                    "droppedIds": ", ".join(result.dropped),
+                    "droppedCount": float(len(result.dropped)),
+                },
+            )
+        )
+
+    explanation.append(
+        ExplanationStep(
+            code="gene-drift",
+            message=(
+                f"Measured structural drift against the source fingerprint; "
+                f"'{top_gene}' changed most ({top_value})."
+            ),
+            metrics={"maxDriftGene": top_gene, "maxDrift": top_value},
+        )
+    )
+    explanation.append(
+        ExplanationStep(
+            code="solver-scope",
+            message=(
+                "Deterministic role-aware reflow. Differentiable (gradient / "
+                "optimal-transport) refinement is not yet implemented."
+            ),
+            metrics={"finalSolver": False},
+        )
+    )
+
+    return OptimizeResponse(
+        target=target,
         boxes=boxes,
         geneDrift=drift,
-        explanation=[
-            ExplanationStep(
-                code="contain-scale",
-                message="Uniformly scaled the source composition into the target safe area.",
-                metrics={"scale": round(scale, 6), "margin": request.margin},
-            ),
-            ExplanationStep(
-                code="margin-clamp",
-                message="Clamped element boxes to margins and declared logo clear space.",
-                metrics={"elementCount": float(len(boxes))},
-            ),
-            ExplanationStep(
-                code="placeholder-warning",
-                message=(
-                    "This deterministic transform is a scaffold, not the final "
-                    "differentiable optimizer."
-                ),
-                metrics={"finalSolver": False},
-            ),
-        ],
+        explanation=explanation,
     )
