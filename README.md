@@ -84,7 +84,7 @@ This repository follows Adobe's current React/TypeScript build-template layout: 
 
 These steps follow Adobe's [current local development and sideloading guide](https://developer.adobe.com/express/add-ons/docs/guides/getting-started/local-development/dev-tooling). The runtime split follows Adobe's [add-on architecture guide](https://developer.adobe.com/express/add-ons/docs/guides/learn/platform-concepts/architecture), and the manifest follows the [manifest v2 reference](https://developer.adobe.com/express/add-ons/docs/references/manifest/).
 
-The adapter currently extracts public node bounds and creates a new target page using `editor.documentRoot.pages.addPage()`. Source-page cloning is an explicit next integration step; until then, the generated target page reports which source IDs are not yet present instead of modifying the source page.
+The adapter extracts public node bounds, creates a new target page using `editor.documentRoot.pages.addPage()`, and reconstructs the source nodes onto it with Adobe's `editor.createX()` factories (the Document Sandbox exposes no node clone API). The reconstruction is non-destructive to the source page but is **not yet verified against live Adobe Express** — it is covered by fakes-only unit tests. Nodes it cannot faithfully reproduce (images, which need the original media; pathless paths) are reported in the result's `missing[]` list rather than faked.
 
 ## API
 
@@ -119,15 +119,15 @@ npm run build
 ## Current limitations
 
 - Gene scores are transparent geometric proxies, not perceptually validated measures.
-- Optimization is uniform contain-scaling and margin clamping; it does not use gradients, optimal transport, continuation, or collision resolution yet.
+- Optimization is a deterministic, role-aware geometric reflow with collision resolution and margin clamping; it does not use gradients, optimal transport, or a continuation/differentiable path yet.
 - Adobe extraction uses conservative common node properties and placeholder salience values.
-- Creating a target page is supported, but cloning heterogeneous source nodes into it is not implemented yet.
+- Node cloning into the target page is implemented via reconstruct-via-factories (text, shapes, and recursive groups) and is non-destructive to the source, but it is not yet verified against live Adobe Express; images and pathless paths are reported in `missing[]` rather than reproduced.
 - No database, authentication, hosted VLM, Firefly integration, GPU deployment, or heavy ML runtime is included.
 
 ## Roadmap
 
 1. Complete loss implementations and a differentiable renderer behind the unchanged API.
-2. Add robust Adobe node cloning, subtype-aware extraction, and non-destructive application tests.
+2. Verify the reconstruct-via-factories cloning in live Adobe Express, add subtype-aware extraction, and support image/media reproduction.
 3. Run fixture benchmarks and blinded human evaluation before making quality claims.
 
 MIT licensed. No generated evaluation claims are included.
