@@ -24,6 +24,7 @@ export function TargetPicker({
             key={target.name}
             onClick={() => onSelect(target)}
             type="button"
+            aria-pressed={target.name === selected.name}
           >
             <span>{target.name}</span>
             <small>

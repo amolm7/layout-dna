@@ -75,21 +75,25 @@ export default function App() {
   return (
     <main>
       <header className="brand-header">
-        <div className="mark">LD</div>
+        <div className="mark" aria-hidden="true">
+          LD
+        </div>
         <div>
           <h1>LayoutDNA</h1>
           <p>Preserve the idea, not just the pixels.</p>
         </div>
       </header>
 
-      <div className="status-row">
-        <span className={connected ? "status-dot online" : "status-dot"} />
+      <div className="status-row" role="status" aria-live="polite">
+        <span className={connected ? "status-dot online" : "status-dot"} aria-hidden="true" />
         <span>{connected ? "Solver connected" : "Solver offline"}</span>
-        <span className="mode-pill">{mode === "adobe" ? "Adobe document" : "Mock mode"}</span>
+        <span className={mode === "mock" ? "mode-pill is-mock" : "mode-pill"}>
+          {mode === "adobe" ? "Adobe document" : "Mock mode"}
+        </span>
       </div>
 
       {mode === "mock" && (
-        <aside className="mock-banner">
+        <aside className="mock-banner" role="note">
           <strong>Mock mode</strong>
           <span>Adobe document access is unavailable. Using a fixture scene.</span>
         </aside>
@@ -101,6 +105,7 @@ export default function App() {
         <button
           className="secondary"
           disabled={busy || !documentApi || !connected}
+          aria-busy={busy}
           onClick={analyze}
         >
           Analyze
@@ -108,13 +113,20 @@ export default function App() {
         <button
           className="primary"
           disabled={busy || !documentApi || !connected}
+          aria-busy={busy}
           onClick={generate}
         >
           Generate layout
         </button>
       </div>
 
-      <p className="operation-status">{busy ? "Working…" : status}</p>
+      <p
+        className={busy ? "operation-status is-busy" : "operation-status"}
+        role="status"
+        aria-live="polite"
+      >
+        {busy ? "Working…" : status}
+      </p>
       <DnaRadar fingerprint={fingerprint} />
       <RoleEditor scene={scene} />
       <TransportOverlay result={result} />

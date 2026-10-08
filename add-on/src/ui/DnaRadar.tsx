@@ -9,6 +9,19 @@ const GENES: Array<[GeneName, string]> = [
   ["grouping", "Grouping"]
 ];
 
+const CENTER = 70;
+const OUTER = 56;
+const RING_RADII = [OUTER, OUTER * (2 / 3), OUTER * (1 / 3)];
+
+function vertex(index: number, radius: number): [number, number] {
+  const angle = (Math.PI * 2 * index) / GENES.length - Math.PI / 2;
+  return [CENTER + Math.cos(angle) * radius, CENTER + Math.sin(angle) * radius];
+}
+
+function ringPoints(radius: number): string {
+  return GENES.map((_, index) => vertex(index, radius).join(",")).join(" ");
+}
+
 export function DnaRadar({ fingerprint }: { fingerprint: FingerprintResponse | null }) {
   const scores = fingerprint?.scores;
   const points = GENES.map(([key], index) => {
@@ -21,16 +34,28 @@ export function DnaRadar({ fingerprint }: { fingerprint: FingerprintResponse | n
     <section className="card fingerprint-card">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Design fingerprint</p>
-          <h2>{fingerprint ? "Measured proxy" : "Preview"}</h2>
+          <h2>Design fingerprint</h2>
+          <p className="heading-note">{fingerprint ? "Measured proxy" : "Preview"}</p>
         </div>
         <span className="approx">Approx.</span>
       </div>
       <div className="radar-wrap">
-        <svg viewBox="0 0 140 140" aria-label="Six-gene fingerprint radar">
-          <polygon className="radar-grid" points="70,14 118,42 118,98 70,126 22,98 22,42" />
+        <svg
+          viewBox="0 0 140 140"
+          role="img"
+          aria-label="Approximate six-gene design fingerprint radar. Values listed alongside."
+        >
+          {RING_RADII.map((radius) => (
+            <polygon key={radius} className="radar-grid" points={ringPoints(radius)} />
+          ))}
+          {GENES.map((_, index) => {
+            const [x, y] = vertex(index, OUTER);
+            return (
+              <line key={index} className="radar-spoke" x1={CENTER} y1={CENTER} x2={x} y2={y} />
+            );
+          })}
           <polygon className="radar-fill" points={points} />
-          <circle cx="70" cy="70" r="3" />
+          <circle className="radar-core" cx="70" cy="70" r="3" />
         </svg>
         <div className="gene-list">
           {GENES.map(([key, label]) => (

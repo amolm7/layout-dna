@@ -15,7 +15,8 @@ export function RoleEditor({ scene }: { scene: Scene | null }) {
         {roles ? (
           Object.entries(roles).map(([role, count]) => (
             <span className="chip" key={role}>
-              {role} · {count}
+              {role}
+              <span className="chip-count">{count}</span>
             </span>
           ))
         ) : (
