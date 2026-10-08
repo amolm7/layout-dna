@@ -2,10 +2,6 @@
 
 LayoutDNA is an Adobe Express add-on prototype that adapts layered designs to new aspect ratios while measuring how well six structural design genes survive the transformation.
 
-## In Progress: LayoutDNA
-
-LayoutDNA is an engine for adapting existing Adobe Express designs to new canvas sizes through intentional layout changes instead of stretching or cropping. The current prototype extracts a layered design into a normalized scene, analyzes its structural fingerprint, uses a deterministic role-aware solver to reflow elements for the target canvas, and creates a new target page while reporting any elements that still await source-page cloning.
-
 **Tech stack:** Adobe Express Add-on SDK, React, TypeScript, Python, FastAPI, Pydantic, and Webpack.
 
 **Status:** Actively building for the Adobe University Hackathon 2026 (Chameleon Challenge).
