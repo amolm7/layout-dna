@@ -17,6 +17,11 @@ interface FakeFill {
   kind: "colorFill";
   color: Color;
 }
+interface FakeGroupNode extends PlacedNode {
+  kind: "group";
+  childNodes: PlacedNode[];
+  children: { append(node: PlacedNode): void };
+}
 
 function makeHarness() {
   const appended: PlacedNode[] = [];
@@ -35,6 +40,18 @@ function makeHarness() {
     createRectangle: vi.fn((): FakeShapeNode => ({ kind: "rectangle" })),
     createEllipse: vi.fn((): FakeShapeNode => ({ kind: "ellipse" })),
     createPath: vi.fn((path: string): FakeShapeNode => ({ kind: "path", pathData: path })),
+    createGroup: vi.fn((): FakeGroupNode => {
+      const childNodes: PlacedNode[] = [];
+      return {
+        kind: "group",
+        childNodes,
+        children: {
+          append: (node: PlacedNode) => {
+            childNodes.push(node);
+          }
+        }
+      };
+    }),
     makeColorFill: vi.fn((color: Color): FakeFill => ({ kind: "colorFill", color }))
   };
   return { factories, targetArtboard, appended };
@@ -145,15 +162,58 @@ describe("cloneNode", () => {
     expect(noPath.appended).toEqual([]);
   });
 
-  it("returns null and appends nothing for image and group sources (not yet supported)", () => {
-    for (const type of ["Image", "MediaContainer", "Group"]) {
+  it("returns null and appends nothing for image sources (pixels cannot be recreated from bounds)", () => {
+    for (const type of ["Image", "MediaContainer"]) {
       const { factories, targetArtboard, appended } = makeHarness();
       const clone = cloneNode({ id: "x", type }, factories, targetArtboard);
       expect(clone).toBeNull();
       expect(factories.createText).not.toHaveBeenCalled();
       expect(factories.createRectangle).not.toHaveBeenCalled();
+      expect(factories.createGroup).not.toHaveBeenCalled();
       expect(targetArtboard.children.append).not.toHaveBeenCalled();
       expect(appended).toEqual([]);
     }
+  });
+
+  it("reconstructs a group: created + appended once, supported children into the group, unsupported skipped", () => {
+    const { factories, targetArtboard, appended } = makeHarness();
+    const source: CloneSourceNode = {
+      id: "story",
+      type: "Group",
+      translation: { x: 1, y: 2 },
+      opacity: 0.9,
+      children: [
+        { id: "t", type: "Text", fullContent: { text: "Hi" } },
+        { id: "r", type: "Rectangle" },
+        { id: "img", type: "Image" } // unsupported -> skipped
+      ]
+    };
+
+    const group = cloneNode(source, factories, targetArtboard) as FakeGroupNode | null;
+
+    expect(factories.createGroup).toHaveBeenCalledTimes(1);
+    expect(group).toMatchObject({ kind: "group", translation: { x: 1, y: 2 }, opacity: 0.9 });
+
+    // The group (only) is appended to the artboard; children go INTO the group.
+    expect(appended).toEqual([group]);
+    expect(group?.childNodes.map((node) => (node as FakeTextNode | FakeShapeNode).kind)).toEqual([
+      "text",
+      "rectangle"
+    ]);
+    expect(factories.createText).toHaveBeenCalledWith("Hi");
+    expect(factories.createRectangle).toHaveBeenCalledTimes(1);
+  });
+
+  it("reconstructs an empty group: created + appended with no children", () => {
+    const { factories, targetArtboard, appended } = makeHarness();
+    const group = cloneNode(
+      { id: "empty", type: "Group" },
+      factories,
+      targetArtboard
+    ) as FakeGroupNode | null;
+
+    expect(factories.createGroup).toHaveBeenCalledTimes(1);
+    expect(appended).toEqual([group]);
+    expect(group?.childNodes).toEqual([]);
   });
 });

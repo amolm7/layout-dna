@@ -39,6 +39,11 @@ export interface CloneSourceNode {
    * Express, so fill-color copying may no-op on the live path (leaving the factory default fill).
    */
   fill?: { color?: Color };
+  /**
+   * Child nodes, for group recursion. Live `GroupNode` exposes a `children` ItemList (iterable);
+   * the exact shape is modeled here and unverified against live Express.
+   */
+  children?: Iterable<CloneSourceNode>;
 }
 
 /** A node we created on the target and may position later (what `applyLayout` repositions). */
@@ -53,6 +58,11 @@ export interface PlacedNode {
   fill?: unknown;
 }
 
+/** A created group node: positionable like any node, and a container we recurse children into. */
+export interface PlacedGroupNode extends PlacedNode {
+  children: { append(node: PlacedNode): void };
+}
+
 /**
  * The subset of Editor factories reconstruction needs. Names/signatures mirror Adobe's Editor
  * reference:
@@ -60,6 +70,7 @@ export interface PlacedNode {
  * - `createRectangle(): RectangleNode` (no args; default black fill)
  * - `createEllipse(): EllipseNode` (no args; default black fill)
  * - `createPath(path: string): PathNode` (SVG path string; throws on empty/invalid)
+ * - `createGroup(): GroupNode` (children appended via `group.children.append`)
  * - `makeColorFill(color): ColorFill`
  * Return types are narrowed to the writable shape we touch here.
  */
@@ -68,6 +79,7 @@ export interface NodeFactories {
   createRectangle(): PlacedNode;
   createEllipse(): PlacedNode;
   createPath(path: string): PlacedNode;
+  createGroup(): PlacedGroupNode;
   makeColorFill(color: Color): unknown;
 }
 
@@ -144,6 +156,22 @@ export function cloneNode(
     return clone;
   }
 
+  if (nodeType(source).includes("group")) {
+    const group = factories.createGroup();
+    copyIdentity(source, group);
+    // Append the group to the artboard first, then reconstruct each source child INTO the group.
+    targetArtboard.children.append(group);
+    for (const child of source.children ?? []) {
+      // A child that cannot be reproduced (unsupported type, pathless path, image) returns null and
+      // appends nothing — it is honestly skipped; the group itself still succeeds.
+      cloneNode(child, factories, group);
+    }
+    // Boundary note: applyLayout positions this returned top-level group. Nested children keep their
+    // relative identity and are NOT re-solved — the solver operates on flattened elements, so child
+    // geometry inside a reproduced group is honestly carried over, not re-optimized for the target.
+    return group;
+  }
+
   const shape = createShape(source, factories);
   if (shape) {
     copyIdentity(source, shape);
@@ -154,7 +182,5 @@ export function cloneNode(
 
   // IMAGE: returns null — faithfully recreating an image needs the original media/asset (bitmap)
   // via createImageContainer(bitmapData); the source bounds alone cannot reproduce the pixels.
-  // GROUP: returns null — needs recursive child reconstruction (createGroup + cloneNode each child
-  // into the group). Both are deferred to increment 3 or stay honestly-null.
   return null;
 }
