@@ -52,6 +52,18 @@ function box(id: string, x: number, y: number, width: number, height: number): E
   return { id, x, y, width, height, rotation: 0 };
 }
 
+/** A clone that throws when `throwOn` is assigned, modeling live Adobe's read-only/unwritable props. */
+function throwingClone(id: string, throwOn: "rotation" | "width"): FakeNode {
+  const clone = { id, width: 0, height: 0, translation: { x: 0, y: 0 }, rotation: 0 };
+  Object.defineProperty(clone, throwOn, {
+    configurable: true,
+    set() {
+      throw new Error(`${throwOn} is not writable on this live node`);
+    }
+  });
+  return clone as FakeNode;
+}
+
 describe("applyLayout", () => {
   it("clones source nodes onto the target page and applies the solved geometry to the clones", () => {
     const { editor, targetChildren } = makeEditor();
@@ -108,5 +120,41 @@ describe("applyLayout", () => {
     for (const node of sourceDescendants) {
       expect(node).toMatchObject({ width: 100, height: 50, translation: { x: 10, y: 20 } });
     }
+  });
+
+  it("marks a box missing when a geometry write throws, without aborting the whole call", () => {
+    const sourceDescendants = [sourceNode("stubborn"), sourceNode("hero")];
+    const targetChildren: FakeNode[] = [];
+    const editor = {
+      sourcePage: { artboards: { first: { allDescendants: sourceDescendants } } },
+      targetPage: { id: "target-1", children: targetChildren },
+      cloneInto(node: FakeNode): FakeNode {
+        // "stubborn" throws on rotation assignment (as a live read-only-rotation node would).
+        const clone =
+          node.id === "stubborn"
+            ? throwingClone(node.id, "rotation")
+            : { id: node.id, width: 0, height: 0, translation: { x: 0, y: 0 }, rotation: 0 };
+        targetChildren.push(clone);
+        return clone;
+      }
+    };
+    // "stubborn" is first, so if its throw bubbled it would abort before "hero" is reached.
+    const boxes = [box("stubborn", 0.1, 0.1, 0.2, 0.2), box("hero", 0.3, 0.3, 0.4, 0.4)];
+
+    let result: { applied: string[]; missing: string[] } | undefined;
+    expect(() => {
+      result = applyLayout(editor as never, boxes, 800, 1000);
+    }).not.toThrow();
+
+    expect(result?.missing).toEqual(["stubborn"]);
+    expect(result?.applied).toEqual(["hero"]);
+
+    // The well-behaved box was still positioned despite the earlier throw.
+    const heroClone = targetChildren.find((node) => node.id === "hero");
+    expect(heroClone).toMatchObject({
+      width: 0.4 * 800,
+      height: 0.4 * 1000,
+      translation: { x: 0.3 * 800, y: 0.3 * 1000 }
+    });
   });
 });

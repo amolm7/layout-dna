@@ -102,11 +102,21 @@ export function applyLayout(
     }
 
     // Geometry is applied to the CLONE on the target page; the source node is never written to.
-    clone.width = box.width * targetWidth;
-    clone.height = box.height * targetHeight;
-    clone.translation = { x: box.x * targetWidth, y: box.y * targetHeight };
-    clone.rotation = box.rotation;
-    applied.push(box.id);
+    // These writes are wrapped because on live Adobe Express per-type geometry writability is
+    // unverified and `rotation` is read-only (it needs setRotationInParent) — a single throwing
+    // assignment would otherwise abort the whole loop and lose every remaining element. On a throw
+    // we treat this element as not placed and move on. Tradeoff: cloneInto may already have appended
+    // the clone, so an un-positioned clone can remain on the target page — an un-positioned clone is
+    // preferable to crashing the entire apply and dropping all other elements.
+    try {
+      clone.width = box.width * targetWidth;
+      clone.height = box.height * targetHeight;
+      clone.translation = { x: box.x * targetWidth, y: box.y * targetHeight };
+      clone.rotation = box.rotation;
+      applied.push(box.id);
+    } catch {
+      missing.push(box.id);
+    }
   }
 
   return { applied, missing };
