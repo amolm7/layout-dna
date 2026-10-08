@@ -1,21 +1,38 @@
 import type { ElementBox } from "../types/scene";
 
-interface MutableNodeLike {
+/**
+ * Read-only view of a source node. `applyLayout` never writes to these, so the source page is
+ * left untouched (AGENTS.md: prefer creating a new target page over destructively editing source).
+ */
+interface SourceNodeLike {
   id?: string;
   width?: number;
   height?: number;
   translation?: { x: number; y: number };
   rotation?: number;
-  allDescendants?: Iterable<MutableNodeLike>;
+  allDescendants?: Iterable<SourceNodeLike>;
 }
 
-interface AdobeEditorLike {
+/** A placed clone on the target page that we reposition to the solved box. */
+interface PlacedNodeLike {
+  id?: string;
+  width?: number;
+  height?: number;
+  translation?: { x: number; y: number };
+  rotation?: number;
+}
+
+interface TargetPageLike {
+  id: string;
+}
+
+interface AddPageEditorLike {
   context: {
     currentPage: {
       id: string;
       width: number;
       height: number;
-      artboards: { first?: MutableNodeLike };
+      artboards: { first?: SourceNodeLike };
     };
   };
   documentRoot: {
@@ -25,39 +42,72 @@ interface AdobeEditorLike {
   };
 }
 
+/**
+ * Editor surface `applyLayout` needs to populate a target page WITHOUT mutating the source.
+ *
+ * `cloneInto` is a clearly-labeled PLACEHOLDER adapter capability. As of the Adobe Express
+ * Document Sandbox API (verified against developer.adobe.com, Oct 2026) there is no public node
+ * clone/duplicate method — only `removeFromParent`, with content built via `editor.createX()`
+ * factories appended to a parent's `children` list. The real adapter must therefore reconstruct
+ * each node on the target artboard and copy its properties; it is intentionally injected here so
+ * this module never fabricates an Adobe API that does not exist. Tests inject a working fake.
+ * A clone that cannot be produced returns null/undefined (or throws), and its id is reported in
+ * `missing[]` rather than silently dropped.
+ */
+interface CloningEditorLike {
+  sourcePage: { artboards: { first?: SourceNodeLike } };
+  targetPage: TargetPageLike;
+  cloneInto(node: SourceNodeLike, targetPage: TargetPageLike): PlacedNodeLike | null | undefined;
+}
+
 export function createOrSelectTargetPage(
-  editor: AdobeEditorLike,
+  editor: AddPageEditorLike,
   width: number,
   height: number
 ): { pageId: string; created: boolean } {
-  // The supported API creates and activates the page. Copying source content is deliberately a
-  // separate future adapter capability; this skeleton never resizes the source page in place.
+  // The supported API creates and activates the page. Source content is cloned onto it separately
+  // by `applyLayout`; this call never resizes the source page in place.
   const page = editor.documentRoot.pages.addPage({ width, height });
   return { pageId: page.id, created: true };
 }
 
 export function applyLayout(
-  editor: AdobeEditorLike,
+  editor: CloningEditorLike,
   boxes: ElementBox[],
   targetWidth: number,
   targetHeight: number
 ): { applied: string[]; missing: string[] } {
-  const nodes = Array.from(editor.context.currentPage.artboards.first?.allDescendants ?? []);
-  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const sourceNodes = Array.from(editor.sourcePage.artboards.first?.allDescendants ?? []);
+  const sourceById = new Map(sourceNodes.map((node) => [node.id, node]));
   const applied: string[] = [];
   const missing: string[] = [];
 
   for (const box of boxes) {
-    const node = byId.get(box.id);
-    if (!node) {
+    const source = sourceById.get(box.id);
+    if (!source) {
       missing.push(box.id);
       continue;
     }
-    node.width = box.width * targetWidth;
-    node.height = box.height * targetHeight;
-    node.translation = { x: box.x * targetWidth, y: box.y * targetHeight };
-    node.rotation = box.rotation;
+
+    let clone: PlacedNodeLike | null | undefined;
+    try {
+      clone = editor.cloneInto(source, editor.targetPage);
+    } catch {
+      clone = null;
+    }
+    if (!clone) {
+      // Genuinely could not be cloned/placed onto the target page.
+      missing.push(box.id);
+      continue;
+    }
+
+    // Geometry is applied to the CLONE on the target page; the source node is never written to.
+    clone.width = box.width * targetWidth;
+    clone.height = box.height * targetHeight;
+    clone.translation = { x: box.x * targetWidth, y: box.y * targetHeight };
+    clone.rotation = box.rotation;
     applied.push(box.id);
   }
+
   return { applied, missing };
 }
