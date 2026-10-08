@@ -3,6 +3,7 @@ import { editor } from "express-document-sdk";
 
 import type { DocumentSandboxApi } from "../types/scene";
 import { applyLayout, createOrSelectTargetPage } from "./applyLayout";
+import { makeCloneInto } from "./cloningAdapter";
 import { extractScene } from "./extractScene";
 
 const { runtime } = addOnSandboxSdk.instance;
@@ -30,11 +31,11 @@ const sandboxApi: DocumentSandboxApi = {
     const cloningEditor = {
       sourcePage: sandboxSession.sourcePage,
       targetPage: sandboxSession.targetPage,
-      // PLACEHOLDER adapter: the Adobe Express Document Sandbox exposes no node clone/duplicate
-      // API (verified Oct 2026), so cloning is not yet implemented on the real path. Until the
-      // reconstruct-via-factories adapter lands, every id is reported in missing[] rather than
-      // silently dropped or faked (AGENTS.md: label placeholders, never fabricate behavior).
-      cloneInto: () => null
+      // Real reconstruct-via-factories cloning (the Document Sandbox has no node clone API, verified
+      // Oct 2026): builds NodeFactories from the live editor and delegates to cloneNode. This path is
+      // IMPLEMENTED-BUT-UNVERIFIED against live Adobe Express — only exercised with fakes in tests.
+      // applyLayout already degrades any throwing live geometry write to missing[].
+      cloneInto: makeCloneInto(editor as any, sandboxSession.targetPage as any)
     };
     return applyLayout(cloningEditor as any, boxes, targetWidth, targetHeight);
   }
