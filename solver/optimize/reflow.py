@@ -10,6 +10,26 @@ but it genuinely rearranges a composition instead of shrinking it in place.
 
 All geometry is expressed in canvas-normalized coordinates in [0, 1]. Inputs are
 normalized to the source canvas; outputs are normalized to the target canvas.
+
+Locked elements and collision resolution
+----------------------------------------
+An element with ``lockedPosition`` is pinned at its source (x, y), clamped into
+the usable safe area, and is taken OUT of the flow: it does not advance the flow
+cursor, so flowed neighbors are placed naively as if it were absent and may land
+on top of it. A post-placement pass (``_resolve_collisions``) then removes
+overlaps between non-background boxes. Strategy, all order-stable:
+
+* Boxes are visited in reading order (``_flow_key``). Locked boxes never move.
+* A movable box that overlaps (by more than ``_COLLISION_EPS`` on both axes) a
+  box that is already settled -- any locked box or any earlier-visited box -- is
+  moved exactly once to the first collision-free candidate position, trying in
+  fixed order: below, above, right of, left of each settled box (obstacles
+  sorted by (y, x, id)). Candidates must stay inside the usable safe area.
+* If no candidate fits, the box is left in place (never hidden) and is not
+  counted as resolved.
+
+``collisions_resolved`` is the number of boxes actually moved. There is no
+randomness anywhere: identical input yields identical output.
 """
 
 from __future__ import annotations
@@ -37,6 +57,11 @@ _DROP_PRIORITY: dict[str, int] = {
 
 # Smallest vertical slice (normalized) we will allocate to any flowed element.
 _MIN_BAND = 0.015
+
+# Overlap (per axis, normalized) above which two boxes are considered colliding.
+_COLLISION_EPS = 1e-6
+# Clear space left between a nudged box and the obstacle it was moved away from.
+_RESOLVE_GAP = 0.005
 
 
 @dataclass
@@ -107,13 +132,76 @@ def reflow(request: OptimizeRequest) -> ReflowResult:
         axis = "vertical"
         placed = _flow_vertical(*args)
 
+    flow_rank = {e.id: i for i, e in enumerate(kept)}
+    locked_ids = {e.id for e in kept if e.constraints.lockedPosition}
+    placed, collisions_resolved = _resolve_collisions(
+        placed, flow_rank, locked_ids, usable_x0, usable_y0, usable_w, usable_h
+    )
+
     boxes.extend(placed)
     return ReflowResult(
         boxes=boxes,
         dropped=dropped,
         flow_axis=axis,
         reorder_count=reorder_count,
+        collisions_resolved=collisions_resolved,
     )
+
+
+def _overlaps(a: ElementBox, b: ElementBox) -> bool:
+    ox = min(a.x + a.width, b.x + b.width) - max(a.x, b.x)
+    oy = min(a.y + a.height, b.y + b.height) - max(a.y, b.y)
+    return ox > _COLLISION_EPS and oy > _COLLISION_EPS
+
+
+def _resolve_collisions(
+    placed: list[ElementBox],
+    flow_rank: dict[str, int],
+    locked_ids: set[str],
+    x0: float,
+    y0: float,
+    usable_w: float,
+    usable_h: float,
+) -> tuple[list[ElementBox], int]:
+    """Nudge overlapping non-background boxes apart; see module docstring.
+
+    Returns the boxes (original order preserved) and how many were moved.
+    """
+    tol = 1e-9
+    by_id = {b.id: b for b in placed}
+    visit = sorted(by_id, key=lambda i: (flow_rank.get(i, len(flow_rank)), i))
+    settled: list[ElementBox] = [by_id[i] for i in visit if i in locked_ids]
+    moved = 0
+
+    def fits(box: ElementBox) -> bool:
+        return (
+            box.x >= x0 - tol
+            and box.y >= y0 - tol
+            and box.x + box.width <= x0 + usable_w + tol
+            and box.y + box.height <= y0 + usable_h + tol
+        )
+
+    for box_id in visit:
+        if box_id in locked_ids:
+            continue
+        box = by_id[box_id]
+        if any(_overlaps(box, other) for other in settled):
+            obstacles = sorted(settled, key=lambda o: (o.y, o.x, o.id))
+            candidates: list[tuple[float, float]] = []
+            candidates += [(box.x, o.y + o.height + _RESOLVE_GAP) for o in obstacles]  # below
+            candidates += [(box.x, o.y - box.height - _RESOLVE_GAP) for o in obstacles]  # above
+            candidates += [(o.x + o.width + _RESOLVE_GAP, box.y) for o in obstacles]  # right
+            candidates += [(o.x - box.width - _RESOLVE_GAP, box.y) for o in obstacles]  # left
+            for cx, cy in candidates:
+                trial = box.model_copy(update={"x": cx, "y": cy})
+                if fits(trial) and not any(_overlaps(trial, other) for other in settled):
+                    box = trial
+                    by_id[box_id] = trial
+                    moved += 1
+                    break
+        settled.append(box)
+
+    return [by_id[b.id] for b in placed], moved
 
 
 def _apply_drop_policy(
@@ -217,6 +305,9 @@ def _flow_vertical(
         h = heights[e.id]
         if e.constraints.lockedPosition:
             x = min(max(e.x, x0), x0 + usable_w - w)
+            y = min(max(e.y, y0), y0 + usable_h - h)
+            boxes.append(ElementBox(id=e.id, x=x, y=y, width=w, height=h, rotation=e.rotation))
+            continue  # pinned and out of flow: does not advance the cursor
         elif e.semanticRole == "logo":
             clear = e.constraints.logoClearSpace
             x = x0 + usable_w - w - clear  # anchor brand mark to the right edge
@@ -261,6 +352,10 @@ def _flow_horizontal(
         else:
             h = min(usable_h, max(usable_h * 0.8, e.constraints.minHeight or 0.0))
         y = y0 + (usable_h - h) / 2  # vertically centered band
+        if e.constraints.lockedPosition:
+            x = min(max(e.x, x0), x0 + usable_w - w)
+            boxes.append(ElementBox(id=e.id, x=x, y=y, width=w, height=h, rotation=e.rotation))
+            continue  # pinned and out of flow: does not advance the cursor
         boxes.append(ElementBox(id=e.id, x=cursor, y=y, width=w, height=h, rotation=e.rotation))
         cursor += w + gap
     return boxes

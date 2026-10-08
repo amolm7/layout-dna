@@ -79,6 +79,18 @@ def optimize_scene(request: OptimizeRequest) -> OptimizeResponse:
             )
         )
 
+    if result.collisions_resolved:
+        explanation.append(
+            ExplanationStep(
+                code="collisions-resolved",
+                message=(
+                    f"Nudged {result.collisions_resolved} element(s) to remove overlaps "
+                    "with locked or earlier-in-reading-order elements."
+                ),
+                metrics={"collisionsResolved": float(result.collisions_resolved)},
+            )
+        )
+
     explanation.append(
         ExplanationStep(
             code="gene-drift",
