@@ -4,6 +4,7 @@ from .constraints import clamp_to_margin
 from .losses import measure_drift
 from .reflow import reflow
 from .sacrifice import ranked_sacrifices
+from .text_fit import text_overflow
 
 
 def optimize_scene(request: OptimizeRequest) -> OptimizeResponse:
@@ -88,6 +89,34 @@ def optimize_scene(request: OptimizeRequest) -> OptimizeResponse:
                     "with locked or earlier-in-reading-order elements."
                 ),
                 metrics={"collisionsResolved": float(result.collisions_resolved)},
+            )
+        )
+
+    elements_by_id = {element.id: element for element in scene.elements}
+    fits = [
+        fit
+        for box in boxes
+        if (element := elements_by_id.get(box.id)) is not None and element.text is not None
+        if (fit := text_overflow(element, box, scene.canvas, target)) is not None
+    ]
+    if fits:
+        worst = max(fits, key=lambda f: f.overflowRatio)
+        explanation.append(
+            ExplanationStep(
+                code="text-overflow",
+                message=(
+                    f"Estimated that {len(fits)} text element(s) may not fit their solved "
+                    "box at a readable size: "
+                    + ", ".join(f.element_id for f in fits)
+                    + ". Approximate heuristic, not a true text layout engine; the text is "
+                    "kept, not removed."
+                ),
+                metrics={
+                    "overflowingIds": ", ".join(f.element_id for f in fits),
+                    "overflowingCount": float(len(fits)),
+                    "worstOverflowRatio": worst.overflowRatio,
+                    "minEstimatedFontPx": min(f.estimatedFontPx for f in fits),
+                },
             )
         )
 
