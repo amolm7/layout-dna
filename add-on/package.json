@@ -4,11 +4,8 @@
   "private": true,
   "description": "LayoutDNA Adobe Express add-on",
   "scripts": {
-    "clean": "ccweb-add-on-scripts clean",
-    "build": "ccweb-add-on-scripts build --use webpack",
-    "start": "ccweb-add-on-scripts start --use webpack",
-    "dev:mock": "webpack serve --mode development",
-    "package": "ccweb-add-on-scripts package --use webpack",
+    "build": "webpack --mode production",
+    "start": "webpack serve --mode development",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && prettier --check .",
     "test": "vitest run"

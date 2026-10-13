@@ -1,4 +1,4 @@
-import type { DocumentSandboxApi, ElementBox, Scene } from "../types/scene";
+import type { Scene } from "../types/scene";
 
 export const mockScene: Scene = {
   schemaVersion: "1.0.0",
@@ -60,10 +60,4 @@ export const mockScene: Scene = {
       groupAffinities: ["brand"]
     }
   ]
-};
-
-export const mockDocumentApi: DocumentSandboxApi = {
-  extractScene: () => structuredClone(mockScene),
-  createOrSelectTargetPage: () => ({ pageId: "mock-target-page", created: true }),
-  applyLayout: (boxes: ElementBox[]) => ({ applied: boxes.map((box) => box.id), missing: [] })
 };

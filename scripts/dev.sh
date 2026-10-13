@@ -17,4 +17,4 @@ trap cleanup EXIT INT TERM
 cd "$repo_dir"
 "$python_bin" -m uvicorn app:app --app-dir solver --reload --host 127.0.0.1 --port 8000 &
 solver_pid=$!
-npm run dev:mock --workspace add-on
+npm run start --workspace add-on
