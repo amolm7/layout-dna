@@ -2,7 +2,7 @@ from schemas import Canvas, ElementBox, ExplanationStep, OptimizeRequest, Optimi
 
 from .constraints import clamp_to_margin
 from .losses import measure_drift
-from .reflow import reflow
+from .reflow import detect_unmet, reflow
 from .sacrifice import ranked_sacrifices
 from .text_fit import text_overflow
 
@@ -116,6 +116,31 @@ def optimize_scene(request: OptimizeRequest) -> OptimizeResponse:
                     "overflowingCount": float(len(fits)),
                     "worstOverflowRatio": worst.overflowRatio,
                     "minEstimatedFontPx": min(f.estimatedFontPx for f in fits),
+                },
+            )
+        )
+
+    unmet = detect_unmet(boxes, elements_by_id)
+    if unmet:
+        unmet_ids = sorted({u.id for u in unmet})
+        worst = max(unmet, key=lambda u: u.got if u.kind == "overlap" else u.wanted - u.got)
+        explanation.append(
+            ExplanationStep(
+                code="constraint-infeasible",
+                message=(
+                    "Could not fully honor hard constraints on this target for "
+                    + ", ".join(unmet_ids)
+                    + ". The element(s) are kept and the shortfall is recorded rather than "
+                    "hidden; the layout is best-effort for this canvas."
+                ),
+                metrics={
+                    "unmetIds": ", ".join(unmet_ids),
+                    "unmetCount": float(len(unmet)),
+                    "kinds": ", ".join(sorted({u.kind for u in unmet})),
+                    "worstId": worst.id,
+                    "worstKind": worst.kind,
+                    "wanted": worst.wanted,
+                    "got": worst.got,
                 },
             )
         )

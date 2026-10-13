@@ -64,6 +64,22 @@ _COLLISION_EPS = 1e-6
 _RESOLVE_GAP = 0.005
 
 
+@dataclass(frozen=True)
+class UnmetConstraint:
+    """A hard constraint the solver could not satisfy for an element.
+
+    The element is still placed (never hidden); the shortfall is recorded so the
+    explanation trace can report it honestly. ``kind`` is ``minWidth``,
+    ``minHeight``, or ``overlap``; ``wanted``/``got`` are the required vs. actual
+    value (for ``overlap``, ``wanted`` is 0 and ``got`` is the overlap area).
+    """
+
+    id: str
+    kind: str
+    wanted: float
+    got: float
+
+
 @dataclass
 class ReflowResult:
     boxes: list[ElementBox]
@@ -168,6 +184,47 @@ def reflow(request: OptimizeRequest) -> ReflowResult:
         collisions_resolved=collisions_resolved,
         group_boxes=group_boxes,
     )
+
+
+def detect_unmet(
+    boxes: list[ElementBox], elements_by_id: dict[str, SceneElement]
+) -> list[UnmetConstraint]:
+    """Record hard constraints the final boxes still violate (min size, overlap).
+
+    Call this on the boxes actually emitted (after margin clamping), since
+    clamping can shift a box into an overlap the raw flow did not have. It
+    mirrors the evaluation harness's violation checks so a counted violation
+    always has a recorded shortfall. Elements stay placed; nothing is hidden.
+    Deterministic: min-size follows box order, overlaps are id-sorted.
+    """
+    tol = 1e-6
+    unmet: list[UnmetConstraint] = []
+    for box in boxes:
+        element = elements_by_id.get(box.id)
+        if element is None:
+            continue
+        min_w = element.constraints.minWidth
+        min_h = element.constraints.minHeight
+        if min_w is not None and box.width < min_w - tol:
+            unmet.append(UnmetConstraint(box.id, "minWidth", round(min_w, 6), round(box.width, 6)))
+        if min_h is not None and box.height < min_h - tol:
+            unmet.append(
+                UnmetConstraint(box.id, "minHeight", round(min_h, 6), round(box.height, 6))
+            )
+
+    foreground = [b for b in boxes if not (b.width >= 0.999 and b.height >= 0.999)]
+    worst_overlap: dict[str, float] = {}
+    for i, first in enumerate(foreground):
+        for second in foreground[i + 1 :]:
+            ox = min(first.x + first.width, second.x + second.width) - max(first.x, second.x)
+            oy = min(first.y + first.height, second.y + second.height) - max(first.y, second.y)
+            if ox > tol and oy > tol:
+                area = ox * oy
+                worst_overlap[first.id] = max(worst_overlap.get(first.id, 0.0), area)
+                worst_overlap[second.id] = max(worst_overlap.get(second.id, 0.0), area)
+    for box_id in sorted(worst_overlap):
+        unmet.append(UnmetConstraint(box_id, "overlap", 0.0, round(worst_overlap[box_id], 6)))
+    return unmet
 
 
 def _expand_group(

@@ -7,7 +7,7 @@ import pytest
 
 from optimize import optimize_scene
 from optimize.losses import measure_gene_scores
-from optimize.reflow import reflow
+from optimize.reflow import detect_unmet, reflow
 from schemas import OptimizeRequest, Scene
 
 ROOT = Path(__file__).parents[2]
@@ -187,6 +187,52 @@ def test_grouped_layout_is_deterministic(card: Scene) -> None:
     req = OptimizeRequest(scene=card, targetWidth=1080, targetHeight=1920, margin=0.04)
     assert optimize_scene(req) == optimize_scene(req)
     assert reflow(req) == reflow(req)
+
+
+def _infeasible_steps(result) -> list:
+    return [s for s in result.explanation if s.code == "constraint-infeasible"]
+
+
+def test_min_size_infeasibility_is_recorded(poster: Scene) -> None:
+    # A 728x90 leaderboard cannot host the fixed-aspect hero at its minWidth.
+    result = optimize_scene(
+        OptimizeRequest(scene=poster, targetWidth=728, targetHeight=90, margin=0.04)
+    )
+    steps = _infeasible_steps(result)
+    assert len(steps) == 1
+    assert "hero" in str(steps[0].metrics["unmetIds"])
+    assert steps[0].metrics["worstKind"] == "minWidth"
+    # Never hidden: the element is still placed, just flagged.
+    assert "hero" in {b.id for b in result.boxes}
+
+
+def test_overlap_infeasibility_is_recorded(poster: Scene) -> None:
+    # On a 970x250 strip the logo cannot clear the body after margin clamping.
+    result = optimize_scene(
+        OptimizeRequest(scene=poster, targetWidth=970, targetHeight=250, margin=0.04)
+    )
+    steps = _infeasible_steps(result)
+    assert len(steps) == 1
+    assert "logo" in str(steps[0].metrics["unmetIds"])
+    assert "overlap" in str(steps[0].metrics["kinds"])
+    assert "logo" in {b.id for b in result.boxes}
+
+
+def test_feed_shaped_target_has_no_infeasibility(poster: Scene) -> None:
+    result = optimize_scene(
+        OptimizeRequest(scene=poster, targetWidth=1080, targetHeight=1350, margin=0.04)
+    )
+    assert _infeasible_steps(result) == []
+    # solver-scope must remain the final explanation step.
+    assert result.explanation[-1].code == "solver-scope"
+
+
+def test_detect_unmet_is_empty_when_constraints_hold(poster: Scene) -> None:
+    result = optimize_scene(
+        OptimizeRequest(scene=poster, targetWidth=1080, targetHeight=1350, margin=0.04)
+    )
+    elements_by_id = {e.id: e for e in poster.elements}
+    assert detect_unmet(result.boxes, elements_by_id) == []
 
 
 def _el(
