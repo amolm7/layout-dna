@@ -23,7 +23,7 @@ dev = [
 optimizer = [] # Future: torch and geomloss once real loss implementations land.
 
 [tool.hatch.build.targets.wheel]
-packages = ["fingerprint", "optimize", "labeling"]
+packages = ["fingerprint", "optimize", "labeling", "evaluation"]
 include = ["app.py", "schemas.py"]
 
 [tool.pytest.ini_options]
