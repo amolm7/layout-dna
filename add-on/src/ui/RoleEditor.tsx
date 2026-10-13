@@ -6,21 +6,21 @@ export function RoleEditor({ scene }: { scene: Scene | null }) {
     return counts;
   }, {});
   return (
-    <section className="card compact">
-      <div className="section-heading">
+    <section className="ld-card">
+      <div className="ld-card-head">
         <h2>Roles</h2>
         <span>{scene?.elements.length ?? 0} elements</span>
       </div>
-      <div className="chips">
+      <div className="ld-chips">
         {roles ? (
           Object.entries(roles).map(([role, count]) => (
-            <span className="chip" key={role}>
+            <span className="ld-chip" key={role}>
               {role}
-              <span className="chip-count">{count}</span>
+              <span className="ld-chip-count">{count}</span>
             </span>
           ))
         ) : (
-          <span className="muted">Analyze to inspect semantic roles.</span>
+          <span className="ld-muted">Analyze to inspect semantic roles.</span>
         )}
       </div>
     </section>

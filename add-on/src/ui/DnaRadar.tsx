@@ -31,33 +31,33 @@ export function DnaRadar({ fingerprint }: { fingerprint: FingerprintResponse | n
   }).join(" ");
 
   return (
-    <section className="card fingerprint-card">
-      <div className="section-heading">
+    <section className="ld-card ld-fingerprint">
+      <div className="ld-card-head">
         <div>
           <h2>Design fingerprint</h2>
-          <p className="heading-note">{fingerprint ? "Measured proxy" : "Preview"}</p>
+          <p className="ld-hint">{fingerprint ? "Measured proxy" : "Preview"}</p>
         </div>
-        <span className="approx">Approx.</span>
+        <span className="ld-tag">Approx.</span>
       </div>
-      <div className="radar-wrap">
+      <div className="ld-radar">
         <svg
           viewBox="0 0 140 140"
           role="img"
           aria-label="Approximate six-gene design fingerprint radar. Values listed alongside."
         >
           {RING_RADII.map((radius) => (
-            <polygon key={radius} className="radar-grid" points={ringPoints(radius)} />
+            <polygon key={radius} className="ld-radar-grid" points={ringPoints(radius)} />
           ))}
           {GENES.map((_, index) => {
             const [x, y] = vertex(index, OUTER);
             return (
-              <line key={index} className="radar-spoke" x1={CENTER} y1={CENTER} x2={x} y2={y} />
+              <line key={index} className="ld-radar-spoke" x1={CENTER} y1={CENTER} x2={x} y2={y} />
             );
           })}
-          <polygon className="radar-fill" points={points} />
-          <circle className="radar-core" cx="70" cy="70" r="3" />
+          <polygon className="ld-radar-fill" points={points} />
+          <circle className="ld-radar-core" cx="70" cy="70" r="3" />
         </svg>
-        <div className="gene-list">
+        <div className="ld-gene-list">
           {GENES.map(([key, label]) => (
             <div key={key}>
               <span>{label}</span>
