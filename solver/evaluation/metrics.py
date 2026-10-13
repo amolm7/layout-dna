@@ -9,6 +9,7 @@ overlap checks.
 
 from __future__ import annotations
 
+from geometry import boxes_overlap
 from schemas import ElementBox, OptimizeRequest, OptimizeResponse, Scene
 
 # Numeric slack so floating-point placement at the exact bound is not flagged.
@@ -22,9 +23,7 @@ def _is_full_bleed(box: ElementBox) -> bool:
 
 
 def _overlaps(a: ElementBox, b: ElementBox) -> bool:
-    ox = min(a.x + a.width, b.x + b.width) - max(a.x, b.x)
-    oy = min(a.y + a.height, b.y + b.height) - max(a.y, b.y)
-    return ox > _TOL and oy > _TOL
+    return boxes_overlap(a, b, _TOL)
 
 
 def count_violations(

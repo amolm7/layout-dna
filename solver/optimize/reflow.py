@@ -36,6 +36,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from geometry import boxes_overlap
 from schemas import ElementBox, OptimizeRequest, Scene, SceneElement
 
 # Aspect ratio (target width / height) at or above which we flow left-to-right
@@ -296,9 +297,7 @@ def _expand_group(
 
 
 def _overlaps(a: ElementBox, b: ElementBox) -> bool:
-    ox = min(a.x + a.width, b.x + b.width) - max(a.x, b.x)
-    oy = min(a.y + a.height, b.y + b.height) - max(a.y, b.y)
-    return ox > _COLLISION_EPS and oy > _COLLISION_EPS
+    return boxes_overlap(a, b, _COLLISION_EPS)
 
 
 def _resolve_collisions(
