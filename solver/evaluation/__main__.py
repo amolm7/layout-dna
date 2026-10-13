@@ -53,6 +53,11 @@ def format_table(report: dict) -> str:
         f"deterministic={s['allDeterministic']} | "
         f"meanDrift={s['meanAggregateDrift']} maxDrift={s['maxAggregateDrift']}"
     )
+    rt = s["runtime"]
+    rows.append(
+        f"runtime ms | min={rt['minMs']} mean={rt['meanMs']} "
+        f"p50={rt['p50Ms']} p95={rt['p95Ms']} max={rt['maxMs']}"
+    )
     rows.append("")
     rows.append(report["disclaimer"])
     return "\n".join(rows)

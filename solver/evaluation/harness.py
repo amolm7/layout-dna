@@ -8,6 +8,7 @@ plumbing only; the ``disclaimer`` field states what the drift numbers are not.
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from statistics import mean
 from time import perf_counter
@@ -82,6 +83,32 @@ def _run_case(scene_name: str, scene: Scene, target: Target, margin: float) -> d
     }
 
 
+def percentile(values: list[float], pct: float) -> float:
+    """Nearest-rank percentile of ``values`` for ``pct`` in [0, 100] (empty -> 0.0)."""
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    rank = max(1, math.ceil(pct / 100 * len(ordered)))
+    return ordered[min(rank, len(ordered)) - 1]
+
+
+def runtime_summary(runtimes: list[float]) -> dict:
+    """Aggregate per-case runtimes into min/mean/p50/p95/max (milliseconds).
+
+    These are measured wall-clock timings, not deterministic values; they are
+    reported to show the solver's speed envelope, never gated.
+    """
+    if not runtimes:
+        return {"minMs": 0.0, "meanMs": 0.0, "p50Ms": 0.0, "p95Ms": 0.0, "maxMs": 0.0}
+    return {
+        "minMs": round(min(runtimes), 4),
+        "meanMs": round(mean(runtimes), 4),
+        "p50Ms": round(percentile(runtimes, 50), 4),
+        "p95Ms": round(percentile(runtimes, 95), 4),
+        "maxMs": round(max(runtimes), 4),
+    }
+
+
 def run_evaluation(margin: float = 0.04) -> dict:
     """Evaluate the solver over all example scenes and targets.
 
@@ -101,6 +128,7 @@ def run_evaluation(margin: float = 0.04) -> dict:
         "meanAggregateDrift": round(mean(aggregate_drifts), 4) if aggregate_drifts else 0.0,
         "maxAggregateDrift": max(aggregate_drifts) if aggregate_drifts else 0.0,
         "allDeterministic": all(c["deterministic"] for c in cases),
+        "runtime": runtime_summary([c["runtimeMs"] for c in cases]),
     }
 
     return {

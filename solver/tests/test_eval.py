@@ -1,6 +1,6 @@
 """Tests for the self-contained evaluation harness."""
 
-from evaluation.harness import EXAMPLES_DIR, run_evaluation
+from evaluation.harness import EXAMPLES_DIR, percentile, run_evaluation, runtime_summary
 from evaluation.targets import TARGETS
 
 GENES = {
@@ -30,6 +30,7 @@ def test_report_structure() -> None:
         "meanAggregateDrift",
         "maxAggregateDrift",
         "allDeterministic",
+        "runtime",
     }
 
 
@@ -88,3 +89,29 @@ def test_summary_aggregates_cases() -> None:
     summary = report["summary"]
     assert summary["totalViolations"] == sum(c["violations"]["total"] for c in cases)
     assert summary["maxAggregateDrift"] == max(c["aggregateDrift"] for c in cases)
+
+
+def test_percentile_nearest_rank() -> None:
+    values = [1.0, 2.0, 3.0, 4.0]
+    assert percentile(values, 0) == 1.0
+    assert percentile(values, 50) == 2.0
+    assert percentile(values, 100) == 4.0
+    assert percentile([], 95) == 0.0
+    # Order independence: shuffled input yields the same percentile.
+    assert percentile([4.0, 1.0, 3.0, 2.0], 95) == 4.0
+
+
+def test_runtime_summary_bounds_and_keys() -> None:
+    summary = runtime_summary([5.0, 1.0, 3.0, 2.0, 4.0])
+    assert set(summary) == {"minMs", "meanMs", "p50Ms", "p95Ms", "maxMs"}
+    assert summary["minMs"] == 1.0
+    assert summary["maxMs"] == 5.0
+    assert summary["minMs"] <= summary["meanMs"] <= summary["maxMs"]
+    assert summary["p50Ms"] <= summary["p95Ms"] <= summary["maxMs"]
+    assert runtime_summary([])["meanMs"] == 0.0
+
+
+def test_report_runtime_summary_is_wired() -> None:
+    runtime = run_evaluation()["summary"]["runtime"]
+    assert set(runtime) == {"minMs", "meanMs", "p50Ms", "p95Ms", "maxMs"}
+    assert runtime["maxMs"] >= runtime["minMs"] >= 0.0

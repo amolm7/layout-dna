@@ -22,6 +22,10 @@ reports, per case: per-gene drift, an aggregate drift, hard-constraint violation
 .venv/bin/python -m evaluation --json   # full report as JSON
 ```
 
+The summary also reports a runtime envelope across all cases — `min`, `mean`, `p50`, `p95`,
+and `max` milliseconds. These are measured wall-clock timings for the solver's speed profile,
+reported but never gated (timing is not deterministic).
+
 The process exits non-zero if any **feasible** scene×target case has a hard-constraint
 violation, or if any case is non-deterministic, so it can gate CI.
 
