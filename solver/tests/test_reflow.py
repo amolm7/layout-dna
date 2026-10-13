@@ -235,6 +235,114 @@ def test_detect_unmet_is_empty_when_constraints_hold(poster: Scene) -> None:
     assert detect_unmet(result.boxes, elements_by_id) == []
 
 
+@pytest.fixture
+def optional_group() -> Scene:
+    path = ROOT / "examples" / "optional-group-mandatory-child.json"
+    return Scene.model_validate_json(path.read_text())
+
+
+@pytest.fixture
+def orphan_scene() -> Scene:
+    return Scene.model_validate_json((ROOT / "examples" / "non-group-parent.json").read_text())
+
+
+def test_optional_group_with_mandatory_child_is_not_dropped(optional_group: Scene) -> None:
+    # The group is optional and under drop pressure, but it holds a mandatory
+    # child, so it must be protected and its mandatory descendant kept on canvas.
+    result = optimize_scene(
+        OptimizeRequest(scene=optional_group, targetWidth=1080, targetHeight=1350, margin=0.04)
+    )
+    placed = {b.id for b in result.boxes}
+    assert "promo-logo" in placed
+    # A lower-priority optional sibling absorbs the pressure instead of the group.
+    dropped_steps = [s for s in result.explanation if s.code == "optional-removed"]
+    assert dropped_steps
+    assert "promo" not in str(dropped_steps[0].metrics["droppedIds"])
+
+
+def test_dropped_optional_group_lists_descendants() -> None:
+    # A fully-optional group (no mandatory descendant) that is dropped must name
+    # its descendants in the dropped list so nothing vanishes unrecorded.
+    scene = Scene.model_validate(
+        {
+            "schemaVersion": "1.0.0",
+            "canvas": {"width": 1000, "height": 1000},
+            "elements": [
+                _el("head", "headline", 0.5, optional=False, reading=0, extra={"minHeight": 0.5}),
+                _grp("banner", 0.5, reading=1),
+                _child("banner-a", "banner", "decoration", 0.3, reading=0),
+                _child("banner-b", "banner", "decoration", 0.3, reading=1),
+            ],
+        }
+    )
+    result = reflow(
+        OptimizeRequest(scene=scene, targetWidth=1000, targetHeight=1000, margin=0.04)
+    )
+    assert "banner" in result.dropped
+    assert "banner-a" in result.dropped and "banner-b" in result.dropped
+    assert "banner" not in {b.id for b in result.boxes}
+
+
+def test_non_group_parent_child_is_placed_and_recorded(orphan_scene: Scene) -> None:
+    result = optimize_scene(
+        OptimizeRequest(scene=orphan_scene, targetWidth=1080, targetHeight=1350, margin=0.04)
+    )
+    assert "panel-label" in {b.id for b in result.boxes}
+    steps = [s for s in result.explanation if s.code == "orphaned-child"]
+    assert len(steps) == 1
+    assert "panel-label" in str(steps[0].metrics["promotedIds"])
+
+
+def test_malformed_nesting_is_deterministic(
+    optional_group: Scene, orphan_scene: Scene
+) -> None:
+    for scene in (optional_group, orphan_scene):
+        req = OptimizeRequest(scene=scene, targetWidth=1080, targetHeight=1350, margin=0.04)
+        assert optimize_scene(req) == optimize_scene(req)
+
+
+def _grp(el_id: str, height: float, *, reading: int) -> dict:
+    return {
+        "id": el_id,
+        "type": "group",
+        "semanticRole": "decoration",
+        "parentId": None,
+        "x": 0.1,
+        "y": 0.1,
+        "width": 0.3,
+        "height": height,
+        "rotation": 0,
+        "zIndex": reading,
+        "visible": True,
+        "optional": True,
+        "visual": {"opacity": 1, "luminance": 0.5, "colorCoverage": 0.5},
+        "constraints": {"minHeight": height},
+        "readingOrder": reading,
+        "groupAffinities": [],
+    }
+
+
+def _child(el_id: str, parent_id: str, role: str, height: float, *, reading: int) -> dict:
+    return {
+        "id": el_id,
+        "type": "shape",
+        "semanticRole": role,
+        "parentId": parent_id,
+        "x": 0.12,
+        "y": 0.12,
+        "width": 0.2,
+        "height": height,
+        "rotation": 0,
+        "zIndex": reading,
+        "visible": True,
+        "optional": True,
+        "visual": {"opacity": 1, "luminance": 0.4, "colorCoverage": 0.5},
+        "constraints": {},
+        "readingOrder": reading,
+        "groupAffinities": [],
+    }
+
+
 def _el(
     el_id: str,
     role: str,

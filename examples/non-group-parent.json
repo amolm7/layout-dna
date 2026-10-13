@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "1.0.0",
+  "canvas": { "width": 1080, "height": 1350, "backgroundColor": { "r": 0.99, "g": 0.98, "b": 0.98, "a": 1 } },
+  "elements": [
+    { "id": "panel", "type": "shape", "semanticRole": "decoration", "parentId": null, "x": 0.08, "y": 0.08, "width": 0.84, "height": 0.3, "rotation": 0, "zIndex": 0, "visible": true, "optional": false, "visual": { "opacity": 1, "luminance": 0.85, "colorCoverage": 0.5 }, "constraints": { "minWidth": 0.3, "minHeight": 0.1, "mandatoryOnCanvas": true }, "readingOrder": 1, "groupAffinities": [] },
+    { "id": "panel-label", "type": "text", "semanticRole": "headline", "parentId": "panel", "x": 0.12, "y": 0.12, "width": 0.6, "height": 0.1, "rotation": 0, "zIndex": 1, "visible": true, "optional": false, "text": { "content": "Now open", "fontSize": 64, "fontWeight": 700, "lineHeight": 1.0, "align": "left" }, "visual": { "opacity": 1, "luminance": 0.1, "colorCoverage": 0.6 }, "constraints": { "minWidth": 0.2, "minHeight": 0.05, "mandatoryOnCanvas": true }, "readingOrder": 0, "groupAffinities": [] },
+    { "id": "tagline", "type": "text", "semanticRole": "body", "parentId": null, "x": 0.08, "y": 0.5, "width": 0.84, "height": 0.08, "rotation": 0, "zIndex": 2, "visible": true, "optional": false, "text": { "content": "Fresh bread every morning.", "fontSize": 30, "fontWeight": 400, "lineHeight": 1.25, "align": "left" }, "visual": { "opacity": 0.9, "luminance": 0.15, "colorCoverage": 0.3 }, "constraints": { "minWidth": 0.25, "minHeight": 0.04, "mandatoryOnCanvas": true }, "readingOrder": 2, "groupAffinities": [] }
+  ]
+}

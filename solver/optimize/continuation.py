@@ -92,6 +92,24 @@ def optimize_scene(request: OptimizeRequest) -> OptimizeResponse:
             )
         )
 
+    if result.promoted:
+        explanation.append(
+            ExplanationStep(
+                code="orphaned-child",
+                message=(
+                    "Placed "
+                    + ", ".join(result.promoted)
+                    + " at the top level because their parent is not a group; a non-group "
+                    "parent cannot carry children, so they are placed independently rather "
+                    "than dropped."
+                ),
+                metrics={
+                    "promotedIds": ", ".join(result.promoted),
+                    "promotedCount": float(len(result.promoted)),
+                },
+            )
+        )
+
     elements_by_id = {element.id: element for element in scene.elements}
     fits = [
         fit

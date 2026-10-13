@@ -92,6 +92,9 @@ class ReflowResult:
     # container box, so these are exposed here for introspection rather than in
     # ``boxes``.
     group_boxes: dict[str, ElementBox] = field(default_factory=dict)
+    # Ids of children promoted into the top-level flow because their parentId
+    # resolves to a non-group element (they would otherwise never be placed).
+    promoted: list[str] = field(default_factory=list)
 
 
 def _source_pixel_ratio(element: SceneElement, scene: Scene) -> float:
@@ -124,24 +127,52 @@ def reflow(request: OptimizeRequest) -> ReflowResult:
     usable_w = 1.0 - 2 * margin
     usable_h = 1.0 - 2 * margin
 
+    elements_by_id = {e.id: e for e in scene.elements}
     visible = [e for e in scene.elements if e.visible]
     backgrounds = [e for e in visible if _is_background(e)]
-    # Only top-level elements flow; a group's descendants travel with it and are
-    # placed relative to the group's solved box after flow (see _expand_group).
-    foreground = [e for e in visible if not _is_background(e) and e.parentId is None]
     children_by_parent: dict[str, list[SceneElement]] = {}
     for e in visible:
         if e.parentId is not None:
             children_by_parent.setdefault(e.parentId, []).append(e)
+
+    # A visible non-background element flows at the top level when it has no
+    # parent OR its parentId resolves to a non-group element. The latter are
+    # orphans: a genuine group's descendants are placed by _expand_group, but a
+    # child of a non-group would never be expanded, so we promote it here rather
+    # than let it vanish. Children of a group stay out of the flow.
+    def _is_orphan(e: SceneElement) -> bool:
+        parent = elements_by_id.get(e.parentId) if e.parentId is not None else None
+        return parent is not None and parent.type != "group"
+
+    foreground = [
+        e for e in visible if not _is_background(e) and (e.parentId is None or _is_orphan(e))
+    ]
+    promoted = sorted(e.id for e in foreground if e.parentId is not None)
 
     ordered = sorted(foreground, key=_flow_key)
     # How many elements changed neighbor order vs. their raw document order?
     raw_order = sorted(foreground, key=lambda e: (e.zIndex, e.id))
     reorder_count = sum(1 for a, b in zip(ordered, raw_order, strict=True) if a.id != b.id)
 
+    # A group is effectively mandatory when any descendant is mandatory, so the
+    # drop policy must not remove it and silently take the mandatory child along.
+    protected = {
+        e.id
+        for e in ordered
+        if e.type == "group" and _has_mandatory_descendant(e.id, children_by_parent)
+    }
+
     # Drop optional elements only under space pressure, lowest priority first.
     horizontal = target_aspect >= HORIZONTAL_ASPECT_THRESHOLD
-    kept, dropped = _apply_drop_policy(ordered, usable_w if horizontal else usable_h)
+    kept, dropped_top = _apply_drop_policy(
+        ordered, usable_w if horizontal else usable_h, protected
+    )
+    # A dropped group takes its whole subtree with it; name every descendant in
+    # the dropped list so none disappears unaccounted-for in the trace.
+    dropped: list[str] = []
+    for drop_id in dropped_top:
+        dropped.append(drop_id)
+        dropped.extend(d.id for d in _descendants(drop_id, children_by_parent))
 
     boxes: list[ElementBox] = []
 
@@ -167,7 +198,6 @@ def reflow(request: OptimizeRequest) -> ReflowResult:
 
     # Expand placed groups into their descendant boxes, mapping each child's
     # source offset/scale into the group's solved box so cohesion survives.
-    elements_by_id = {e.id: e for e in scene.elements}
     group_boxes: dict[str, ElementBox] = {}
     for box in placed:
         element = elements_by_id[box.id]
@@ -176,6 +206,7 @@ def reflow(request: OptimizeRequest) -> ReflowResult:
         else:
             boxes.append(box)
 
+    placed_ids = {b.id for b in boxes}
     return ReflowResult(
         boxes=boxes,
         dropped=dropped,
@@ -183,6 +214,7 @@ def reflow(request: OptimizeRequest) -> ReflowResult:
         reorder_count=reorder_count,
         collisions_resolved=collisions_resolved,
         group_boxes=group_boxes,
+        promoted=[pid for pid in promoted if pid in placed_ids],
     )
 
 
@@ -319,13 +351,38 @@ def _resolve_collisions(
     return [by_id[b.id] for b in placed], moved
 
 
+def _descendants(
+    root_id: str, children_by_parent: dict[str, list[SceneElement]]
+) -> list[SceneElement]:
+    """All descendants of ``root_id`` (depth-first), using the parent map."""
+    out: list[SceneElement] = []
+    stack = list(children_by_parent.get(root_id, []))
+    while stack:
+        node = stack.pop()
+        out.append(node)
+        stack.extend(children_by_parent.get(node.id, []))
+    return out
+
+
+def _has_mandatory_descendant(
+    group_id: str, children_by_parent: dict[str, list[SceneElement]]
+) -> bool:
+    """True when any descendant of the group must stay on canvas."""
+    return any(
+        not d.optional or d.constraints.mandatoryOnCanvas
+        for d in _descendants(group_id, children_by_parent)
+    )
+
+
 def _apply_drop_policy(
-    ordered: list[SceneElement], available: float
+    ordered: list[SceneElement], available: float, protected: set[str]
 ) -> tuple[list[SceneElement], list[str]]:
     """Remove optional elements, lowest priority first, until min demand fits.
 
-    Mandatory elements (optional is False) are never removed; this keeps the
-    AGENTS.md guarantee that mandatory design elements are not silently hidden.
+    Mandatory elements (optional is False) are never removed; neither are
+    ``protected`` ids (groups whose subtree holds a mandatory descendant). This
+    keeps the AGENTS.md guarantee that mandatory design elements are not
+    silently hidden -- directly or via a dropped ancestor group.
     """
     kept = list(ordered)
     dropped: list[str] = []
@@ -334,7 +391,7 @@ def _apply_drop_policy(
         return sum(max(e.constraints.minHeight or _MIN_BAND, _MIN_BAND) for e in items)
 
     optional_sorted = sorted(
-        (e for e in ordered if e.optional),
+        (e for e in ordered if e.optional and e.id not in protected),
         key=lambda e: (_DROP_PRIORITY.get(e.semanticRole, 2), e.zIndex, e.id),
     )
     idx = 0
