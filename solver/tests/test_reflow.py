@@ -1,19 +1,28 @@
 """Tests for the deterministic role-aware reflow optimizer."""
 
+import json
 from pathlib import Path
 
 import pytest
 
 from optimize import optimize_scene
 from optimize.losses import measure_gene_scores
+from optimize.reflow import reflow
 from schemas import OptimizeRequest, Scene
 
 ROOT = Path(__file__).parents[2]
+
+_TOL = 1e-6
 
 
 @pytest.fixture
 def poster() -> Scene:
     return Scene.model_validate_json((ROOT / "examples" / "editorial-poster.json").read_text())
+
+
+@pytest.fixture
+def card() -> Scene:
+    return Scene.model_validate_json((ROOT / "examples" / "nested-group-card.json").read_text())
 
 
 def _overlap(a: dict, b: dict) -> bool:
@@ -105,6 +114,79 @@ def test_mandatory_elements_are_never_dropped() -> None:
 def test_result_scene_gene_scores_are_valid(poster: Scene) -> None:
     scores = measure_gene_scores(poster)
     assert all(0.0 <= v <= 1.0 for v in scores.values())
+
+
+def _within(child: dict, parent, tol: float = 1e-3) -> bool:
+    return (
+        child["x"] >= parent.x - tol
+        and child["y"] >= parent.y - tol
+        and child["x"] + child["width"] <= parent.x + parent.width + tol
+        and child["y"] + child["height"] <= parent.y + parent.height + tol
+    )
+
+
+def test_nested_group_fixture_matches_schema_and_pydantic() -> None:
+    # Pydantic StrictModel (extra=forbid) is the authoritative contract; also
+    # check the fixture structurally against scene.schema.json (stdlib only, no
+    # jsonschema dependency) so the two stay honest with each other.
+    raw = json.loads((ROOT / "examples" / "nested-group-card.json").read_text())
+    Scene.model_validate(raw)  # raises on any contract violation
+
+    schema = json.loads((ROOT / "schemas" / "scene.schema.json").read_text())
+    element = schema["$defs"]["element"]
+    allowed = set(element["properties"])
+    required = set(element["required"])
+    type_enum = set(element["properties"]["type"]["enum"])
+    role_enum = set(element["properties"]["semanticRole"]["enum"])
+    constraint_keys = set(element["properties"]["constraints"]["properties"])
+    for el in raw["elements"]:
+        assert set(el) <= allowed, f"{el['id']} has keys outside the schema"
+        assert required <= set(el), f"{el['id']} missing required keys"
+        assert el["type"] in type_enum
+        assert el["semanticRole"] in role_enum
+        assert set(el["constraints"]) <= constraint_keys
+
+
+def test_group_children_stay_within_parent(card: Scene) -> None:
+    req = OptimizeRequest(scene=card, targetWidth=1080, targetHeight=1080, margin=0.04)
+    result = reflow(req)
+    # Both the top-level group and the nested group get a solved box.
+    assert set(result.group_boxes) == {"card", "card-text"}
+    parent_of = {e.id: e.parentId for e in card.elements}
+    by_id = {b.id: b.model_dump() for b in result.boxes}
+    # Every element that lives under a group (leaf or nested group) must stay
+    # inside its parent's solved box, so cohesion survives the reflow.
+    for element in card.elements:
+        parent_id = parent_of[element.id]
+        if parent_id is None:
+            continue
+        box = by_id.get(element.id) or result.group_boxes[element.id].model_dump()
+        assert _within(box, result.group_boxes[parent_id]), (
+            f"{element.id} escaped group {parent_id}"
+        )
+
+
+def test_group_siblings_keep_reading_order(card: Scene) -> None:
+    req = OptimizeRequest(scene=card, targetWidth=1080, targetHeight=1080, margin=0.04)
+    boxes = {b.id: b for b in reflow(req).boxes}
+    # Within the nested text group, the headline (readingOrder 0) sits above the
+    # subhead (readingOrder 1) on the vertical flow axis.
+    assert boxes["card-title"].y < boxes["card-sub"].y
+
+
+def test_no_child_of_mandatory_group_is_dropped(card: Scene) -> None:
+    req = OptimizeRequest(scene=card, targetWidth=1080, targetHeight=1920, margin=0.04)
+    placed = {b.id for b in optimize_scene(req).boxes}
+    # card and card-text are mandatory groups; their leaf descendants must all
+    # be placed (group containers are represented by their children, not emitted).
+    for child_id in ("card-image", "card-title", "card-sub"):
+        assert child_id in placed
+
+
+def test_grouped_layout_is_deterministic(card: Scene) -> None:
+    req = OptimizeRequest(scene=card, targetWidth=1080, targetHeight=1920, margin=0.04)
+    assert optimize_scene(req) == optimize_scene(req)
+    assert reflow(req) == reflow(req)
 
 
 def _el(

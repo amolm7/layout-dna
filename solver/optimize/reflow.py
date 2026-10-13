@@ -71,6 +71,11 @@ class ReflowResult:
     flow_axis: str = "vertical"
     reorder_count: int = 0
     collisions_resolved: int = 0
+    # Solved bounding box of each placed group container (top-level and nested),
+    # keyed by element id. Groups are emitted as their child boxes, not as a
+    # container box, so these are exposed here for introspection rather than in
+    # ``boxes``.
+    group_boxes: dict[str, ElementBox] = field(default_factory=dict)
 
 
 def _source_pixel_ratio(element: SceneElement, scene: Scene) -> float:
@@ -105,7 +110,13 @@ def reflow(request: OptimizeRequest) -> ReflowResult:
 
     visible = [e for e in scene.elements if e.visible]
     backgrounds = [e for e in visible if _is_background(e)]
-    foreground = [e for e in visible if not _is_background(e)]
+    # Only top-level elements flow; a group's descendants travel with it and are
+    # placed relative to the group's solved box after flow (see _expand_group).
+    foreground = [e for e in visible if not _is_background(e) and e.parentId is None]
+    children_by_parent: dict[str, list[SceneElement]] = {}
+    for e in visible:
+        if e.parentId is not None:
+            children_by_parent.setdefault(e.parentId, []).append(e)
 
     ordered = sorted(foreground, key=_flow_key)
     # How many elements changed neighbor order vs. their raw document order?
@@ -138,14 +149,61 @@ def reflow(request: OptimizeRequest) -> ReflowResult:
         placed, flow_rank, locked_ids, usable_x0, usable_y0, usable_w, usable_h
     )
 
-    boxes.extend(placed)
+    # Expand placed groups into their descendant boxes, mapping each child's
+    # source offset/scale into the group's solved box so cohesion survives.
+    elements_by_id = {e.id: e for e in scene.elements}
+    group_boxes: dict[str, ElementBox] = {}
+    for box in placed:
+        element = elements_by_id[box.id]
+        if element.type == "group":
+            _expand_group(element, box, children_by_parent, boxes, group_boxes)
+        else:
+            boxes.append(box)
+
     return ReflowResult(
         boxes=boxes,
         dropped=dropped,
         flow_axis=axis,
         reorder_count=reorder_count,
         collisions_resolved=collisions_resolved,
+        group_boxes=group_boxes,
     )
+
+
+def _expand_group(
+    group: SceneElement,
+    group_box: ElementBox,
+    children_by_parent: dict[str, list[SceneElement]],
+    out: list[ElementBox],
+    group_boxes: dict[str, ElementBox],
+) -> None:
+    """Place a group's descendants relative to its solved box.
+
+    Each child keeps its source-relative offset and scale:
+    ``child_target = group_target_origin + (child_src - group_src_origin)
+    * (group_target_size / group_src_size)``. A child that is itself a group
+    recurses with its own solved box, so nesting composes. Group containers are
+    recorded in ``group_boxes`` but never emitted as boxes; only leaf
+    descendants are appended to ``out``.
+    """
+    group_boxes[group.id] = group_box
+    src_w = group.width if group.width > 1e-9 else 1e-9
+    src_h = group.height if group.height > 1e-9 else 1e-9
+    scale_x = group_box.width / src_w
+    scale_y = group_box.height / src_h
+    for child in sorted(children_by_parent.get(group.id, []), key=_flow_key):
+        child_box = ElementBox(
+            id=child.id,
+            x=group_box.x + (child.x - group.x) * scale_x,
+            y=group_box.y + (child.y - group.y) * scale_y,
+            width=child.width * scale_x,
+            height=child.height * scale_y,
+            rotation=child.rotation,
+        )
+        if child.type == "group":
+            _expand_group(child, child_box, children_by_parent, out, group_boxes)
+        else:
+            out.append(child_box)
 
 
 def _overlaps(a: ElementBox, b: ElementBox) -> bool:
@@ -234,7 +292,11 @@ def _apply_drop_policy(
 def _target_width_for(element: SceneElement, usable_w: float) -> float:
     """Role-driven width within the usable column (left-aligned grid)."""
     role = element.semanticRole
-    if role in ("logo", "decoration"):
+    if element.type == "group":
+        # A group travels as a unit; keep its footprint so children are not
+        # stretched to the full column width.
+        base = min(usable_w, max(element.constraints.minWidth or 0.0, element.width))
+    elif role in ("logo", "decoration"):
         # Brand marks and accents keep their footprint; they should not grow to
         # fill the column just because the canvas got wider.
         base = min(usable_w, max(element.constraints.minWidth or 0.0, element.width))

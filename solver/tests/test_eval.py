@@ -1,6 +1,6 @@
 """Tests for the self-contained evaluation harness."""
 
-from evaluation.harness import run_evaluation
+from evaluation.harness import EXAMPLES_DIR, run_evaluation
 from evaluation.targets import TARGETS
 
 GENES = {
@@ -37,7 +37,8 @@ def test_covers_every_scene_times_target() -> None:
     report = run_evaluation()
     scenes = {c["scene"] for c in report["cases"]}
     targets = {c["target"] for c in report["cases"]}
-    assert len(scenes) == 3
+    example_count = len(list(EXAMPLES_DIR.glob("*.json")))
+    assert len(scenes) == example_count
     assert targets == {t.name for t in TARGETS}
     assert report["summary"]["cases"] == len(scenes) * len(TARGETS)
     assert len(report["cases"]) == report["summary"]["cases"]
