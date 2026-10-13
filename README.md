@@ -112,9 +112,14 @@ npm run lint
 npm test
 .venv/bin/ruff check solver
 .venv/bin/pytest solver/tests
+.venv/bin/python -m evaluation   # solver eval harness over examples × target matrix
 npm run build
 ./scripts/check.sh
 ```
+
+The evaluation harness reports per-gene drift, hard-constraint violation counts, determinism,
+and runtime across every example scene and a fixed target matrix; it exits non-zero if a
+geometrically feasible case violates a hard constraint. See [evaluation](docs/evaluation.md).
 
 ## Current limitations
 

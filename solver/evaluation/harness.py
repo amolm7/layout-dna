@@ -15,6 +15,7 @@ from time import perf_counter
 from optimize import optimize_scene
 from schemas import OptimizeRequest, OptimizeResponse, Scene
 
+from .feasibility import aspect_stress, feasible_expected
 from .metrics import count_violations
 from .targets import TARGETS, Target
 
@@ -69,6 +70,8 @@ def _run_case(scene_name: str, scene: Scene, target: Target, margin: float) -> d
         "target": target.name,
         "targetWidth": target.width,
         "targetHeight": target.height,
+        "aspectStress": round(aspect_stress(scene, target), 4),
+        "feasibleExpected": feasible_expected(scene, target),
         "geneDrift": gene_drift,
         "aggregateDrift": round(mean(gene_drift.values()), 4),
         "violations": violations,

@@ -16,4 +16,5 @@ fi
 
 "$python_bin" -m ruff check solver
 "$python_bin" -m pytest solver/tests
+PYTHONPATH="$repo_dir/solver" "$python_bin" -m evaluation
 
