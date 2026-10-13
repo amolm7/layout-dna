@@ -1,136 +1,198 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { SolverClient } from "../api/solverClient";
-import type {
-  DocumentSandboxApi,
-  FingerprintResponse,
-  OptimizeResponse,
-  Scene,
-  TargetSize
-} from "../types/scene";
+import type { FingerprintResponse, GeneName, OptimizeResponse } from "../types/scene";
+import { DESIGNS } from "./designs";
+import { DesignPicker } from "./DesignPicker";
 import { DnaRadar } from "./DnaRadar";
-import { connectDocument } from "./documentClient";
 import { RoleEditor } from "./RoleEditor";
+import { ScenePreview } from "./ScenePreview";
+import { droppedElements, placeScene, placeTarget } from "./scenePlacement";
 import { TARGETS, TargetPicker } from "./TargetPicker";
-import { TransportOverlay } from "./TransportOverlay";
 import "./styles.css";
+
+const GENE_LABELS: Array<[GeneName, string]> = [
+  ["visualMass", "Visual mass"],
+  ["hierarchy", "Hierarchy"],
+  ["readingPath", "Reading path"],
+  ["alignment", "Alignment"],
+  ["negativeSpace", "Negative space"],
+  ["grouping", "Grouping"]
+];
 
 export default function App() {
   const solver = useMemo(() => new SolverClient(), []);
-  const [documentApi, setDocumentApi] = useState<DocumentSandboxApi | null>(null);
-  const [mode, setMode] = useState<"connecting" | "adobe" | "mock">("connecting");
-  const [connected, setConnected] = useState(false);
-  const [target, setTarget] = useState<TargetSize>(TARGETS[0]!);
-  const [scene, setScene] = useState<Scene | null>(null);
+  const [design, setDesign] = useState(DESIGNS[0]!);
+  const [target, setTarget] = useState(TARGETS[2]!);
+  const [online, setOnline] = useState<boolean | null>(null);
   const [fingerprint, setFingerprint] = useState<FingerprintResponse | null>(null);
   const [result, setResult] = useState<OptimizeResponse | null>(null);
-  const [status, setStatus] = useState("Ready to analyze");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  // Re-run the engine whenever the source design or target format changes.
   useEffect(() => {
-    void Promise.all([connectDocument(), solver.health()]).then(([document, healthy]) => {
-      setDocumentApi(document.api);
-      setMode(document.mode);
-      setConnected(healthy);
-    });
-  }, [solver]);
-
-  async function analyze() {
-    if (!documentApi) return;
+    let cancelled = false;
     setBusy(true);
-    try {
-      const nextScene = await documentApi.extractScene();
-      setScene(nextScene);
-      setFingerprint(await solver.fingerprint(nextScene));
-      setStatus(`Analyzed ${nextScene.elements.length} elements`);
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Analysis failed");
-    } finally {
-      setBusy(false);
-    }
-  }
+    setError(null);
+    void (async () => {
+      const healthy = await solver.health();
+      if (cancelled) return;
+      setOnline(healthy);
+      if (!healthy) {
+        setFingerprint(null);
+        setResult(null);
+        setBusy(false);
+        return;
+      }
+      try {
+        const [print, optimized] = await Promise.all([
+          solver.fingerprint(design.scene),
+          solver.optimize(design.scene, target.width, target.height)
+        ]);
+        if (cancelled) return;
+        setFingerprint(print);
+        setResult(optimized);
+      } catch (cause) {
+        if (cancelled) return;
+        setError(cause instanceof Error ? cause.message : "The solver request failed.");
+      } finally {
+        if (!cancelled) setBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [solver, design, target]);
 
-  async function generate() {
-    if (!documentApi) return;
-    setBusy(true);
-    try {
-      const source = scene ?? (await documentApi.extractScene());
-      const optimized = await solver.optimize(source, target.width, target.height);
-      setScene(source);
-      setResult(optimized);
-      await documentApi.createOrSelectTargetPage(target.width, target.height);
-      const applied = await documentApi.applyLayout(optimized.boxes, target.width, target.height);
-      setStatus(
-        applied.missing.length
-          ? `Target created; ${applied.missing.length} elements await source-page cloning`
-          : `Generated ${target.name} layout`
-      );
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Generation failed");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const sourcePlaced = useMemo(() => placeScene(design.scene), [design]);
+  const targetPlaced = result ? placeTarget(design.scene, result.boxes) : null;
+  const dropped = result ? droppedElements(design.scene, result.boxes) : [];
 
   return (
-    <main>
-      <header className="brand-header">
-        <div className="mark" aria-hidden="true">
+    <main className="ld-app">
+      <header className="ld-header">
+        <div className="ld-mark" aria-hidden="true">
           LD
         </div>
-        <div>
+        <div className="ld-headings">
           <h1>LayoutDNA</h1>
-          <p>Preserve the idea, not just the pixels.</p>
+          <p>Re-lay-out a design for a new canvas instead of stretching or cropping it.</p>
+        </div>
+        <div
+          className={`ld-status ld-status--${online === null ? "pending" : online ? "on" : "off"}`}
+          role="status"
+          aria-live="polite"
+        >
+          <span className="ld-status-dot" aria-hidden="true" />
+          {online === null ? "Checking engine" : online ? "Engine online" : "Engine offline"}
         </div>
       </header>
 
-      <div className="status-row" role="status" aria-live="polite">
-        <span className={connected ? "status-dot online" : "status-dot"} aria-hidden="true" />
-        <span>{connected ? "Solver connected" : "Solver offline"}</span>
-        <span className={mode === "mock" ? "mode-pill is-mock" : "mode-pill"}>
-          {mode === "adobe" ? "Adobe document" : "Mock mode"}
-        </span>
-      </div>
+      <section className="ld-controls" aria-label="Re-layout inputs">
+        <DesignPicker designs={DESIGNS} selected={design} onSelect={setDesign} />
+        <TargetPicker selected={target} onSelect={setTarget} />
+      </section>
 
-      {mode === "mock" && (
-        <aside className="mock-banner" role="note">
-          <strong>Mock mode</strong>
-          <span>Adobe document access is unavailable. Using a fixture scene.</span>
-        </aside>
+      {online === false && (
+        <p className="ld-note" role="note">
+          Start the local solver to run the engine: <code>./scripts/dev.sh</code> or run uvicorn on
+          port 8000. The source design is shown below in the meantime.
+        </p>
+      )}
+      {error && (
+        <p className="ld-note ld-note--error" role="alert">
+          {error}
+        </p>
       )}
 
-      <TargetPicker selected={target} onSelect={setTarget} />
+      <section className="ld-stage" aria-label="Before and after">
+        <article className="ld-panel">
+          <div className="ld-panel-head">
+            <h2>Source</h2>
+            <span className="ld-dims">
+              {design.scene.canvas.width} x {design.scene.canvas.height}
+            </span>
+          </div>
+          <ScenePreview canvas={design.scene.canvas} placed={sourcePlaced} badge="Source" />
+        </article>
 
-      <div className="actions">
-        <button
-          className="secondary"
-          disabled={busy || !documentApi || !connected}
-          aria-busy={busy}
-          onClick={analyze}
-        >
-          Analyze
-        </button>
-        <button
-          className="primary"
-          disabled={busy || !documentApi || !connected}
-          aria-busy={busy}
-          onClick={generate}
-        >
-          Generate layout
-        </button>
-      </div>
+        <article className="ld-panel" aria-busy={busy}>
+          <div className="ld-panel-head">
+            <h2>Re-layout</h2>
+            <span className="ld-dims">
+              {target.width} x {target.height}
+            </span>
+          </div>
+          {targetPlaced ? (
+            <ScenePreview
+              canvas={{ ...result!.target, width: target.width, height: target.height }}
+              placed={targetPlaced}
+              badge={`${target.width} x ${target.height}`}
+            />
+          ) : (
+            <div className="ld-empty">
+              {busy ? "Composing the new layout..." : "Awaiting engine."}
+            </div>
+          )}
+        </article>
+      </section>
 
-      <p
-        className={busy ? "operation-status is-busy" : "operation-status"}
-        role="status"
-        aria-live="polite"
-      >
-        {busy ? "Working…" : status}
-      </p>
-      <DnaRadar fingerprint={fingerprint} />
-      <RoleEditor scene={scene} />
-      <TransportOverlay result={result} />
-      <footer>Deterministic prototype · schema 1.0.0</footer>
+      <section className="ld-readouts">
+        <DnaRadar fingerprint={fingerprint} />
+
+        <div className="ld-card">
+          <div className="ld-card-head">
+            <h2>Gene drift</h2>
+            <span className="ld-hint">lower is more faithful</span>
+          </div>
+          {result ? (
+            <ul className="ld-drift">
+              {GENE_LABELS.map(([gene, label]) => {
+                const drift = result.geneDrift[gene];
+                return (
+                  <li key={gene}>
+                    <span className="ld-drift-label">{label}</span>
+                    <span className="ld-drift-bar" aria-hidden="true">
+                      <span style={{ width: `${Math.min(100, drift * 100)}%` }} />
+                    </span>
+                    <span className="ld-drift-value">{Math.round(drift * 100)}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="ld-muted">Run the engine to measure how each gene shifted.</p>
+          )}
+        </div>
+
+        <RoleEditor scene={design.scene} />
+
+        <div className="ld-card">
+          <div className="ld-card-head">
+            <h2>What the engine did</h2>
+          </div>
+          {result ? (
+            <ol className="ld-trace">
+              {result.explanation.map((step, index) => (
+                <li key={`${step.code}-${index}`}>{step.message}</li>
+              ))}
+              {dropped.length > 0 && (
+                <li className="ld-trace-drop">
+                  Dropped {dropped.length} optional element{dropped.length > 1 ? "s" : ""} that
+                  could not fit: {dropped.map((element) => element.semanticRole).join(", ")}.
+                </li>
+              )}
+            </ol>
+          ) : (
+            <p className="ld-muted">The engine explains every move it makes.</p>
+          )}
+        </div>
+      </section>
+
+      <footer className="ld-footer">
+        Deterministic, role-aware reflow engine. Scene schema {design.scene.schemaVersion}.
+      </footer>
     </main>
   );
 }
