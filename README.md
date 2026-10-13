@@ -1,16 +1,21 @@
 # LayoutDNA
 
-LayoutDNA is an Adobe Express add-on prototype that adapts layered designs to new aspect ratios while measuring how well six structural design genes survive the transformation.
+LayoutDNA adapts layered designs to new aspect ratios while measuring how well six structural
+"design genes" survive the transformation. It is a standalone project: a browser web client and
+a Python solver service, joined by one versioned scene contract — no host application required.
 
-**Tech stack:** Adobe Express Add-on SDK, React, TypeScript, Python, FastAPI, Pydantic, and Webpack.
+**Tech stack:** React, TypeScript, Webpack, Python, FastAPI, and Pydantic.
 
-**Status:** Actively building for the Adobe University Hackathon 2026 (Chameleon Challenge).
-
-**Current engine flow:** Input design → scene extraction and layout analysis → role-aware reflow for the target canvas → new target page and layout output.
+**Engine flow:** source scene → layout analysis and gene fingerprint → deterministic role-aware
+reflow for the target canvas → before/after render plus a grounded explanation of the tradeoffs.
 
 ## Why it exists
 
-Ordinary resize tools preserve pixels or apply generic reflow rules; they do not describe what made the source composition feel like itself. LayoutDNA represents a page as a versioned scene, measures a deterministic first-pass fingerprint, and asks a solver service for a constrained target layout plus an explanation of the tradeoffs. The current solver is intentionally a lightweight geometric placeholder, not the planned differentiable optimizer.
+Ordinary resize tools preserve pixels or apply generic reflow rules; they do not describe what
+made the source composition feel like itself. LayoutDNA represents a page as a versioned scene,
+measures a deterministic first-pass fingerprint, and asks a solver service for a constrained
+target layout plus an explanation of the tradeoffs. The current solver is intentionally a
+lightweight, deterministic geometric engine, not the planned differentiable optimizer.
 
 The fingerprint has six genes:
 
@@ -23,14 +28,19 @@ The fingerprint has six genes:
 
 ## Architecture
 
-The React/TypeScript panel runs in Adobe Express's iframe runtime, where browser APIs and solver network calls are available. Document reads and writes run in Adobe's separate document-sandbox runtime. A typed proxy is the only boundary between them. Outside Express, the UI falls back visibly to a fixture-backed mock document adapter.
+A React/TypeScript web client loads example scenes locally, lets you pick a target format, calls
+the solver over HTTP, and renders the result entirely in the browser as a before/after SVG —
+alongside the gene fingerprint, per-gene drift, and the explanation trace. If the solver is
+unreachable it shows a clear offline state rather than inventing a result.
 
-The FastAPI service validates the shared scene model with Pydantic, computes deterministic proxy scores, and performs a centered contain-scale with safe-margin enforcement. See [the architecture](docs/architecture.md) and [optimization plan](docs/optimization.md).
+The FastAPI service validates the shared scene model with Pydantic, computes deterministic proxy
+gene scores, and performs a role-aware reflow with collision resolution and safe-margin
+enforcement. See [the architecture](docs/architecture.md) and [optimization plan](docs/optimization.md).
 
 ## Repository map
 
-- `add-on/` — React UI, Adobe manifest v2, document-sandbox adapter, and frontend tests
-- `solver/` — FastAPI API, Pydantic contracts, gene modules, placeholder optimizer, and tests
+- `add-on/` — React + TypeScript web client (scene gallery, target picker, SVG before/after, tests)
+- `solver/` — FastAPI API, Pydantic contracts, gene modules, deterministic reflow, CLI, and tests
 - `schemas/scene.schema.json` — language-neutral scene contract
 - `examples/` — valid source-scene fixtures
 - `docs/` — architecture, fingerprint, optimization, evaluation, and demo notes
@@ -39,9 +49,8 @@ The FastAPI service validates the shared scene model with Pydantic, computes det
 
 ## Prerequisites
 
-- Node.js 20+ and npm (Adobe's current docs require Node 18+; this repository targets 20+)
+- Node.js 20+ and npm
 - Python 3.11+
-- An Adobe Express account for in-host testing
 
 ## Install
 
@@ -64,33 +73,34 @@ Start the solver:
 .venv/bin/python -m uvicorn app:app --app-dir solver --reload --host 127.0.0.1 --port 8000
 ```
 
-In another terminal, run the panel in standalone mock mode:
+In another terminal, start the web client:
 
 ```bash
-npm run dev:mock --workspace add-on
+npm run dev:add-on
 ```
 
-Open `http://127.0.0.1:5241`. The panel clearly reports **Mock mode**, reads its fixture scene, and calls the real local solver. `./scripts/dev.sh` starts both processes together.
+Open `http://127.0.0.1:5241`, pick an example scene and a target format, and the client renders
+the source and solved layouts side by side against the local solver. `./scripts/dev.sh` starts
+both processes together.
 
-## Test in Adobe Express
+## Command line
 
-This repository follows Adobe's current React/TypeScript build-template layout: manifest v2, bundled `index.html`, bundled `code.js`, and a `documentSandbox` panel entry point.
+The solver runs standalone from a terminal, no browser needed, via the `layoutdna` CLI:
 
-1. Start the solver on port 8000.
-2. Run `npm run start --workspace add-on`. On first use, Adobe's CLI may guide you through creating the trusted localhost certificate.
-3. Open the CLI-provided `https://www.adobe.com/go/addon-cli` link, or open Adobe Express and enable **Add-on Development** in Settings.
-4. In Express, open **Add-ons**, enable add-on testing/development, choose **Test your local add-on**, and connect to `https://localhost:5241`.
-5. Open LayoutDNA in a layered document. The mode badge should change from Mock mode to Adobe document.
+```bash
+layoutdna fingerprint examples/retail-promo.json          # six gene proxy scores
+layoutdna optimize    examples/retail-promo.json --target leaderboard
+layoutdna optimize    examples/editorial-poster.json --width 1200 --height 628 --json
+```
 
-These steps follow Adobe's [current local development and sideloading guide](https://developer.adobe.com/express/add-ons/docs/guides/getting-started/local-development/dev-tooling). The runtime split follows Adobe's [add-on architecture guide](https://developer.adobe.com/express/add-ons/docs/guides/learn/platform-concepts/architecture), and the manifest follows the [manifest v2 reference](https://developer.adobe.com/express/add-ons/docs/references/manifest/).
-
-The adapter extracts public node bounds, creates a new target page using `editor.documentRoot.pages.addPage()`, and reconstructs the source nodes onto it with Adobe's `editor.createX()` factories (the Document Sandbox exposes no node clone API). The reconstruction is non-destructive to the source page but is **not yet verified against live Adobe Express** — it is covered by fakes-only unit tests. Nodes it cannot faithfully reproduce (images, which need the original media; pathless paths) are reported in the result's `missing[]` list rather than faked.
+Named target presets mirror the evaluation matrix (`square`, `story`, `landscape`, `wide`,
+`leaderboard`); `--width`/`--height` override them, and `--json` emits the raw API response.
 
 ## API
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/health` | Solver status and placeholder implementation label |
+| `GET` | `/health` | Solver status and implementation label |
 | `POST` | `/api/v1/fingerprint` | Six deterministic approximate gene scores |
 | `POST` | `/api/v1/optimize` | Margin-safe target boxes, drift metrics, and explanation trace |
 
@@ -118,21 +128,21 @@ npm run build
 ```
 
 The evaluation harness reports per-gene drift, hard-constraint violation counts, determinism,
-and runtime across every example scene and a fixed target matrix; it exits non-zero if a
-geometrically feasible case violates a hard constraint. See [evaluation](docs/evaluation.md).
+and a runtime envelope across every example scene and a fixed target matrix; it exits non-zero
+if a geometrically feasible case violates a hard constraint. See [evaluation](docs/evaluation.md).
 
 ## Current limitations
 
 - Gene scores are transparent geometric proxies, not perceptually validated measures.
-- Optimization is a deterministic, role-aware geometric reflow with collision resolution and margin clamping; it does not use gradients, optimal transport, or a continuation/differentiable path yet.
-- Adobe extraction uses conservative common node properties and placeholder salience values.
-- Node cloning into the target page is implemented via reconstruct-via-factories (text, shapes, and recursive groups) and is non-destructive to the source, but it is not yet verified against live Adobe Express; images and pathless paths are reported in `missing[]` rather than reproduced.
-- No database, authentication, hosted VLM, Firefly integration, GPU deployment, or heavy ML runtime is included.
+- Optimization is a deterministic, role-aware geometric reflow with collision resolution and
+  margin clamping; it does not use gradients, optimal transport, or a differentiable path yet.
+- Salience and some text metrics use fixture metadata rather than rendered measurement.
+- No database, authentication, hosted VLM, GPU deployment, or heavy ML runtime is included.
 
 ## Roadmap
 
 1. Complete loss implementations and a differentiable renderer behind the unchanged API.
-2. Verify the reconstruct-via-factories cloning in live Adobe Express, add subtype-aware extraction, and support image/media reproduction.
+2. Expand the example corpus and subtype-aware scene extraction.
 3. Run fixture benchmarks and blinded human evaluation before making quality claims.
 
 MIT licensed. No generated evaluation claims are included.
