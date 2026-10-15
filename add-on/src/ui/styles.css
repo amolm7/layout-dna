@@ -1,5 +1,6 @@
 :root {
-  --ld-bg: #0e0f12;
+  --ld-bg: #0d0e11;
+  --ld-bg-2: #101217;
   --ld-surface: #16181d;
   --ld-surface-2: #1d2026;
   --ld-border: rgba(255, 255, 255, 0.09);
@@ -7,13 +8,18 @@
   --ld-text: #eceae4;
   --ld-text-dim: #9a9b9e;
   --ld-accent: #e8613c;
-  --ld-accent-text: #e8613c;
+  --ld-accent-hi: #f5834f;
+  --ld-accent-lo: #cf4e28;
+  --ld-accent-text: #ef7a53;
   --ld-accent-soft: rgba(232, 97, 60, 0.14);
+  --ld-glow: rgba(232, 97, 60, 0.16);
+  --ld-grid: rgba(255, 255, 255, 0.04);
   --ld-on-accent: #ffffff;
   --ld-on: #4ade80;
   --ld-off: #f05252;
   --ld-pending: #e8a23c;
-  --ld-shadow: 0 8px 24px -12px rgba(120, 140, 200, 0.22);
+  --ld-shadow: 0 10px 30px -16px rgba(0, 0, 0, 0.6);
+  --ld-shadow-accent: 0 10px 28px -14px rgba(232, 97, 60, 0.5);
   --ld-font:
     ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
     sans-serif;
@@ -23,6 +29,7 @@
 @media (prefers-color-scheme: light) {
   :root {
     --ld-bg: #f4f2ec;
+    --ld-bg-2: #efece3;
     --ld-surface: #ffffff;
     --ld-surface-2: #faf8f3;
     --ld-border: rgba(20, 22, 27, 0.1);
@@ -30,7 +37,10 @@
     --ld-text: #15171b;
     --ld-text-dim: #5b5e66;
     --ld-accent-text: #b63e1a;
-    --ld-shadow: 0 8px 24px -12px rgba(60, 50, 120, 0.22);
+    --ld-glow: rgba(232, 97, 60, 0.12);
+    --ld-grid: rgba(20, 22, 27, 0.045);
+    --ld-shadow: 0 10px 30px -16px rgba(40, 34, 60, 0.26);
+    --ld-shadow-accent: 0 10px 28px -14px rgba(232, 97, 60, 0.32);
   }
 }
 
@@ -45,7 +55,52 @@ body {
   color: var(--ld-text);
   font-size: 0.95rem;
   line-height: 1.55;
+  letter-spacing: -0.006em;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Layered backdrop: a warm accent glow over a faint grid, masked to fade out.
+   Fixed + pointer-events:none so it adds depth without touching layout. */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+body::before {
+  background:
+    radial-gradient(70% 55% at 82% -8%, var(--ld-glow), transparent 68%),
+    linear-gradient(180deg, var(--ld-bg-2), var(--ld-bg) 42%);
+}
+body::after {
+  background-image:
+    linear-gradient(to right, var(--ld-grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--ld-grid) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(74% 52% at 80% 0%, #000, transparent 72%);
+  mask-image: radial-gradient(74% 52% at 80% 0%, #000, transparent 72%);
+}
+
+/* Themed browser surfaces */
+::selection {
+  background: var(--ld-accent-soft);
+  color: var(--ld-text);
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ld-border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--ld-border-strong);
+  border: 3px solid var(--ld-bg);
+  border-radius: 999px;
 }
 
 button {
@@ -62,7 +117,7 @@ p {
 .ld-app {
   max-width: 1120px;
   margin: 0 auto;
-  padding: 32px 24px 64px;
+  padding: 40px 24px 72px;
 }
 
 /* Header */
@@ -70,31 +125,36 @@ p {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 28px;
+  gap: 16px;
+  margin-bottom: 32px;
 }
 
 .ld-mark {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: var(--ld-accent);
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(150deg, var(--ld-accent-hi), var(--ld-accent-lo));
   color: var(--ld-on-accent);
   font-weight: 700;
-  font-size: 1.2rem;
-  letter-spacing: -0.02em;
+  font-size: 1.25rem;
+  letter-spacing: -0.03em;
+  box-shadow:
+    var(--ld-shadow-accent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 .ld-headings h1 {
-  font-size: 1.6rem;
+  font-size: 1.75rem;
   font-weight: 700;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
 }
 
 .ld-headings p {
+  margin-top: 2px;
+  max-width: 48ch;
   color: var(--ld-text-dim);
   font-size: 0.9rem;
 }
