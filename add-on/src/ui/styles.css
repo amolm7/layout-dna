@@ -439,6 +439,17 @@ a:focus-visible,
   margin-top: 24px;
 }
 
+/* The fingerprint is the signature readout — give the radar and its values
+   room to breathe instead of cramping them into one narrow column. */
+.ld-fingerprint {
+  grid-column: span 2;
+}
+@media (max-width: 540px) {
+  .ld-fingerprint {
+    grid-column: auto;
+  }
+}
+
 .ld-drift {
   margin: 0;
   padding: 0;
