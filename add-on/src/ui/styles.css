@@ -304,17 +304,54 @@ a:focus-visible,
 /* Stage */
 .ld-stage {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: stretch;
+  gap: 16px;
+}
+
+.ld-connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding-top: 28px;
+  color: var(--ld-accent);
+}
+
+.ld-connector-line {
+  flex: 1;
+  width: 1px;
+  min-height: 18px;
+  background: linear-gradient(var(--ld-border-strong), transparent);
+}
+.ld-connector-line:last-child {
+  background: linear-gradient(transparent, var(--ld-border-strong));
+}
+
+.ld-connector-badge {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--ld-accent-soft);
+  background: var(--ld-surface);
+  box-shadow: var(--ld-shadow-accent);
+}
+.ld-connector-badge svg {
+  width: 15px;
+  height: 15px;
 }
 
 .ld-panel,
 .ld-card {
   min-width: 0;
-  padding: 16px;
+  padding: 18px;
   border: 1px solid var(--ld-border);
-  border-radius: 14px;
-  background: var(--ld-surface);
+  border-radius: 16px;
+  background: linear-gradient(180deg, var(--ld-surface), var(--ld-bg-2));
+  box-shadow: var(--ld-shadow);
 }
 
 .ld-panel-head,
@@ -606,6 +643,25 @@ a:focus-visible,
   .ld-controls,
   .ld-stage {
     grid-template-columns: 1fr;
+  }
+
+  .ld-connector {
+    flex-direction: row;
+    padding-top: 0;
+  }
+
+  .ld-connector-line {
+    width: auto;
+    height: 1px;
+    min-height: 0;
+    background: linear-gradient(90deg, var(--ld-border-strong), transparent);
+  }
+  .ld-connector-line:last-child {
+    background: linear-gradient(90deg, transparent, var(--ld-border-strong));
+  }
+
+  .ld-connector-badge {
+    transform: rotate(90deg);
   }
 }
 

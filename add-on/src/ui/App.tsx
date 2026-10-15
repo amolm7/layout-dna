@@ -117,6 +117,24 @@ export default function App() {
           <ScenePreview canvas={design.scene.canvas} placed={sourcePlaced} badge="Source" />
         </article>
 
+        <div className="ld-connector" aria-hidden="true">
+          <span className="ld-connector-line" />
+          <span className="ld-connector-badge">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M5 12h13" />
+              <path d="m12 6 6 6-6 6" />
+            </svg>
+          </span>
+          <span className="ld-connector-line" />
+        </div>
+
         <article className="ld-panel" aria-busy={busy}>
           <div className="ld-panel-head">
             <h2>Re-layout</h2>
