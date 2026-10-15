@@ -641,6 +641,23 @@ a:focus-visible,
     animation: ld-rise 0.4s ease both;
   }
 
+  /* One cohesive entrance: readout cards rise in a gentle stagger. */
+  .ld-readouts > * {
+    animation: ld-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .ld-readouts > *:nth-child(2) {
+    animation-delay: 0.05s;
+  }
+  .ld-readouts > *:nth-child(3) {
+    animation-delay: 0.1s;
+  }
+  .ld-readouts > *:nth-child(4) {
+    animation-delay: 0.15s;
+  }
+  .ld-readouts > *:nth-child(n + 5) {
+    animation-delay: 0.2s;
+  }
+
   .ld-status--pending .ld-status-dot {
     animation: ld-pulse 1.4s ease-in-out infinite;
   }
@@ -648,6 +665,7 @@ a:focus-visible,
 
 @media (prefers-reduced-motion: reduce) {
   .ld-preview,
+  .ld-readouts > *,
   .ld-status--pending .ld-status-dot {
     animation: none;
   }
