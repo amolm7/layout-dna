@@ -71,14 +71,13 @@ export default function App() {
 
   return (
     <main className="ld-app">
-      <header className="ld-header">
-        <div className="ld-mark" aria-hidden="true">
-          LD
-        </div>
-        <div className="ld-headings">
-          <h1>LayoutDNA</h1>
-          <p>Re-lay-out a design for a new canvas instead of stretching or cropping it.</p>
-        </div>
+      <nav className="ld-nav" aria-label="LayoutDNA">
+        <span className="ld-brand">
+          <span className="ld-mark" aria-hidden="true">
+            LD
+          </span>
+          <span className="ld-wordmark">LayoutDNA</span>
+        </span>
         <div
           className={`ld-status ld-status--${online === null ? "pending" : online ? "on" : "off"}`}
           role="status"
@@ -87,6 +86,16 @@ export default function App() {
           <span className="ld-status-dot" aria-hidden="true" />
           {online === null ? "Checking engine" : online ? "Engine online" : "Engine offline"}
         </div>
+      </nav>
+
+      <header className="ld-hero">
+        <h1 className="ld-hero-title">
+          Change the canvas. <span className="ld-accent-word">Keep the design.</span>
+        </h1>
+        <p className="ld-hero-sub">
+          LayoutDNA re-lays-out a design for a new aspect ratio and scores how well six structural
+          genes survive the move.
+        </p>
       </header>
 
       <section className="ld-controls" aria-label="Re-layout inputs">

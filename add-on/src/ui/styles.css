@@ -120,43 +120,66 @@ p {
   padding: 40px 24px 72px;
 }
 
-/* Header */
-.ld-header {
+/* Nav */
+.ld-nav {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: 16px;
-  margin-bottom: 32px;
+  height: 56px;
+}
+
+.ld-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.ld-wordmark {
+  font-weight: 650;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
 }
 
 .ld-mark {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
   background: linear-gradient(150deg, var(--ld-accent-hi), var(--ld-accent-lo));
   color: var(--ld-on-accent);
   font-weight: 700;
-  font-size: 1.25rem;
+  font-size: 0.95rem;
   letter-spacing: -0.03em;
   box-shadow:
     var(--ld-shadow-accent),
     inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
-.ld-headings h1 {
-  font-size: 1.75rem;
-  font-weight: 700;
-  letter-spacing: -0.025em;
-  line-height: 1.1;
+/* Hero */
+.ld-hero {
+  margin: 36px 0 36px;
 }
 
-.ld-headings p {
-  margin-top: 2px;
-  max-width: 48ch;
+.ld-hero-title {
+  max-width: 17ch;
+  font-size: clamp(2.3rem, 5.4vw, 3.6rem);
+  font-weight: 760;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+}
+
+.ld-accent-word {
+  color: var(--ld-accent-text);
+}
+
+.ld-hero-sub {
+  margin-top: 18px;
+  max-width: 62ch;
   color: var(--ld-text-dim);
-  font-size: 0.9rem;
+  font-size: 1.08rem;
+  line-height: 1.5;
 }
 
 .ld-status {
