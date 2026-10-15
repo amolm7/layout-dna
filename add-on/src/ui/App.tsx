@@ -148,10 +148,14 @@ export default function App() {
               placed={targetPlaced}
               badge={`${target.width} x ${target.height}`}
             />
-          ) : (
-            <div className="ld-empty">
-              {busy ? "Composing the new layout..." : "Awaiting engine."}
+          ) : busy ? (
+            <div className="ld-skeleton" aria-hidden="true">
+              <span className="ld-skel-block" />
+              <span className="ld-skel-line" />
+              <span className="ld-skel-line ld-skel-line--short" />
             </div>
+          ) : (
+            <div className="ld-empty">Awaiting engine.</div>
           )}
         </article>
       </section>

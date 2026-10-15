@@ -431,6 +431,58 @@ a:focus-visible,
   text-align: center;
 }
 
+/* Loading: a skeleton shaped like the re-laid-out preview, not a spinner. */
+.ld-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 180px;
+  padding: 16px;
+  border: 1px solid var(--ld-border);
+  border-radius: 12px;
+  background: var(--ld-bg-2);
+}
+
+.ld-skel-block {
+  flex: 1;
+  min-height: 96px;
+  border-radius: 10px;
+}
+.ld-skel-line {
+  height: 12px;
+  border-radius: 6px;
+}
+.ld-skel-line--short {
+  width: 55%;
+}
+
+.ld-skel-block,
+.ld-skel-line {
+  background: linear-gradient(
+    90deg,
+    var(--ld-surface-2) 25%,
+    var(--ld-surface) 38%,
+    var(--ld-surface-2) 60%
+  );
+  background-size: 300% 100%;
+  animation: ld-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes ld-shimmer {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -150% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ld-skel-block,
+  .ld-skel-line {
+    animation: none;
+  }
+}
+
 /* Readouts */
 .ld-readouts {
   display: grid;
