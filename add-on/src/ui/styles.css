@@ -580,8 +580,8 @@ a:focus-visible,
 .ld-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
+  gap: 8px;
+  padding: 4px 6px 4px 11px;
   border: 1px solid var(--ld-border);
   border-radius: 999px;
   background: var(--ld-surface-2);
@@ -589,9 +589,17 @@ a:focus-visible,
 }
 
 .ld-chip-count {
-  color: var(--ld-text-dim);
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--ld-accent-soft);
+  color: var(--ld-accent-text);
   font-family: var(--ld-mono);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
+  font-weight: 600;
 }
 
 .ld-muted {
