@@ -36,8 +36,9 @@ describe("RoleEditor", () => {
     expect(screen.getByText("3 elements")).toBeInTheDocument();
     const headline = screen.getByText("headline").closest(".ld-chip");
     const body = screen.getByText("body").closest(".ld-chip");
-    expect(headline).toHaveTextContent("1");
-    expect(body).toHaveTextContent("2");
+    // Assert the exact count element, not a substring of the whole chip.
+    expect(headline!.querySelector(".ld-chip-count")).toHaveTextContent(/^1$/);
+    expect(body!.querySelector(".ld-chip-count")).toHaveTextContent(/^2$/);
   });
 
   it("shows a prompt and zero count when there is no scene", () => {

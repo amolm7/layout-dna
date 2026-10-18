@@ -3,6 +3,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { FingerprintResponse, OptimizeResponse } from "../src/types/scene";
+import { DESIGNS } from "../src/ui/designs";
+import { TARGETS } from "../src/ui/TargetPicker";
 
 const health = vi.fn();
 const fingerprint = vi.fn();
@@ -60,8 +62,9 @@ describe("App", () => {
     render(<App />);
 
     await waitFor(() => expect(screen.getByText("Engine online")).toBeInTheDocument());
-    expect(screen.getByText("Reflowed the design into the target.")).toBeInTheDocument();
-    expect(optimize).toHaveBeenCalled();
+    expect(await screen.findByText("Reflowed the design into the target.")).toBeInTheDocument();
+    // App's defaults: the first design and the third target (Landscape).
+    expect(optimize).toHaveBeenCalledWith(DESIGNS[0]!.scene, TARGETS[2]!.width, TARGETS[2]!.height);
   });
 
   it("reports an offline engine and does not call optimize", async () => {
