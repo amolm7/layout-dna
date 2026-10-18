@@ -15,5 +15,5 @@
     "target": "ES2022",
     "types": ["vitest/globals"]
   },
-  "include": ["src", "tests", "webpack.config.js"]
+  "include": ["src", "tests", "vitest.config.ts", "webpack.config.js"]
 }
